@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.pytest_cache/
+
+# Node & Frontend
+node_modules/
+.next/
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+*.env
+
+# Patient Privacy & Sensitive Clinical Data (NDPA / HIPAA Protection)
+# Never commit real SPSS .sav files, patient databases, or scanned clinical forms
+*.sav
+!fixtures/*_synthetic.sav
+*.db
+*.sqlite
+*.sqlite3
+backend/uploads/
+backend/scan_queue/
+backend/crops/
+backend/exports/
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+
+# Local AI Review Bundles
+/reviews/
+*.review.txt
+*_review.txt
+docs/reviews/

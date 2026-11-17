@@ -474,6 +474,10 @@ button {
   font-size: 13px;
 }
 
+input[type="search"].input-control {
+  min-width: 245px;
+}
+
 .queue-table-wrap {
   overflow-x: auto;
 }
@@ -668,7 +672,8 @@ button {
 .interpretation-panel {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
+  align-self: start;
 }
 
 .interp-body {

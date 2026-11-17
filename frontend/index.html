@@ -45,7 +45,7 @@
       <button type="button" class="nav-tab" id="nav-projects" data-view="projects">Projects</button>
       <button type="button" class="nav-tab" id="nav-intake" data-view="intake">Paper Intake</button>
       <button type="button" class="nav-tab" id="nav-queue" data-view="queue">Review Queue</button>
-      <button type="button" class="nav-tab" id="nav-split" data-view="split" disabled>Evidence Split</button>
+      <button type="button" class="nav-tab" id="nav-split" data-view="split">Evidence Room</button>
       <button type="button" class="nav-tab" id="nav-merger" data-view="merger">Master Merger</button>
       <button type="button" class="nav-tab" id="nav-analytics" data-view="analytics">Quality Observatory</button>
       <button type="button" class="nav-tab" id="nav-studio" data-view="studio">Analysis Studio</button>
@@ -593,36 +593,83 @@
     <!-- ====================================================================
          SCREEN 04: EVIDENCE SPLIT WORKSTATION
          ==================================================================== -->
-    <section id="view-split" aria-label="Evidence Split Review" hidden>
-      <div class="evidence-topbar">
-        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-          <button type="button" class="btn btn-sm" id="btn-back-to-queue">← Back to Queue</button>
-          <span class="mono-tag" id="split-progress-counter">Issue 0 of 0</span>
-          <span class="mono-tag" id="split-doc-ref"></span>
+    <section id="view-split" aria-label="The Evidence Room — Evidence Split Review" hidden>
+      <!-- Screen 04: The Evidence Room Editorial Header -->
+      <div class="rd-intro-grid">
+        <div>
+          <span class="mono-tag" style="color:var(--accent-blue);">SCREEN 04 · THE EVIDENCE ROOM</span>
+          <h1 class="rd-heading">Every value has a <em>source</em>.</h1>
+          <p class="rd-sub">
+            Compare extracted information against the original encounter form. Review uncertain fields and preserve a traceable record of every correction.
+          </p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+            <button type="button" class="btn btn-sm" id="er-btn-back-intake">← Back to Receiving Desk</button>
+            <button type="button" class="btn btn-sm" id="btn-back-to-queue">View Review Queue</button>
+            <button type="button" class="btn btn-sm btn-electric" id="er-btn-go-observatory">Quality Observatory →</button>
+          </div>
         </div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <button type="button" class="btn btn-sm" id="btn-prev-issue">← Prev Issue</button>
-          <button type="button" class="btn btn-sm" id="btn-next-issue">Next Issue →</button>
+
+        <div class="rd-batch-card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+            <div>
+              <span class="mono-tag" style="color:var(--ink-on-forest-muted);" id="er-split-proj-label">PROJECT: —</span>
+              <div style="font-size:18px; font-weight:600; margin-top:4px;" id="er-split-doc-title">No Document Selected</div>
+            </div>
+            <span class="status-badge mm-awaiting" id="er-split-doc-status">◷ Awaiting Evidence</span>
+          </div>
+          <div class="rd-batch-meta-grid">
+            <div><span class="mono-tag">ACTIVE BATCH</span><strong id="er-split-batch-label">—</strong></div>
+            <div><span class="mono-tag">QUEUE PROGRESS</span><strong id="er-split-queue-progress">0 / 0 resolved</strong></div>
+          </div>
         </div>
       </div>
 
-      <div class="evidence-split-grid">
-        <div class="evidence-viewer-panel">
-          <div class="viewer-toolbar">
-            <div>
-              <span class="mono-tag" style="color:var(--ink-on-dark);" id="viewer-doc-name">No document selected</span>
-              <span class="mono-tag" style="color:var(--ink-on-dark-muted); margin-left:8px;" id="viewer-page-label"></span>
-            </div>
-            <div style="display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
-              <button type="button" class="btn-instrument" id="btn-page-prev">‹ Page</button>
-              <button type="button" class="btn-instrument" id="btn-page-next">Page ›</button>
-              <button type="button" class="btn-instrument" id="btn-zoom-out">−</button>
-              <span class="mono-tag" style="color:var(--ink-on-dark); min-width:44px; text-align:center;" id="zoom-readout">100%</span>
-              <button type="button" class="btn-instrument" id="btn-zoom-in">+</button>
-              <button type="button" class="btn-instrument" id="btn-fit-page">Fit</button>
-              <button type="button" class="btn-instrument" id="btn-full-page">Full Page</button>
-            </div>
+      <!-- Designed Empty State when no documents or issues exist -->
+      <div class="panel" id="er-split-empty" style="padding:36px; text-align:center;" hidden>
+        <span class="mono-tag" style="color:var(--accent-blue);">NO DOCUMENTS AWAITING REVIEW</span>
+        <h2 class="pi-section-title" style="margin-top:8px;">The Evidence Room is ready for your records</h2>
+        <p style="color:var(--ink-secondary); max-width:540px; margin:8px auto 18px;">
+          There are currently no uploaded documents or extracted fields requiring verification in this session. Upload scanned encounter forms in Paper Intake or load the isolated synthetic demo to inspect the split-screen workstation.
+        </p>
+        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+          <button type="button" class="btn btn-electric" id="er-empty-go-intake">Open Paper Intake →</button>
+          <button type="button" class="btn" id="er-empty-load-synth">Load Synthetic Demo</button>
+        </div>
+      </div>
+
+      <!-- Active Evidence Split Workspace -->
+      <div id="er-split-workspace">
+        <!-- Document Queue & Navigation Bar -->
+        <div class="er-doc-queue-bar">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span class="mono-tag" id="split-progress-counter">Issue 0 of 0</span>
+            <span class="mono-tag" id="split-doc-ref"></span>
+            <select id="er-split-doc-select" class="input-control" aria-label="Select document in Evidence Room"></select>
           </div>
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-sm" id="btn-prev-issue">← Prev Field</button>
+            <button type="button" class="btn btn-sm" id="btn-next-issue">Next Field →</button>
+          </div>
+        </div>
+
+        <div class="evidence-split-grid">
+          <div class="evidence-viewer-panel">
+            <div class="viewer-toolbar">
+              <div>
+                <span class="mono-tag" style="color:var(--ink-on-dark);" id="viewer-doc-name">No document selected</span>
+                <span class="mono-tag" style="color:var(--ink-on-dark-muted); margin-left:8px;" id="viewer-page-label"></span>
+              </div>
+              <div style="display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
+                <button type="button" class="btn-instrument" id="btn-page-prev">‹ Page</button>
+                <button type="button" class="btn-instrument" id="btn-page-next">Page ›</button>
+                <button type="button" class="btn-instrument" id="btn-zoom-out">−</button>
+                <span class="mono-tag" style="color:var(--ink-on-dark); min-width:44px; text-align:center;" id="zoom-readout">100%</span>
+                <button type="button" class="btn-instrument" id="btn-zoom-in">+</button>
+                <button type="button" class="btn-instrument" id="btn-fit-width">Fit Width</button>
+                <button type="button" class="btn-instrument" id="btn-fit-page">Fit Page</button>
+                <button type="button" class="btn-instrument" id="btn-full-page">Full Page</button>
+              </div>
+            </div>
 
           <div class="viewer-stage" id="viewer-stage" tabindex="0">
             <div class="viewer-canvas-wrap" id="viewer-canvas-wrap" hidden>
@@ -649,6 +696,11 @@
           </div>
 
           <div class="interp-body" id="interp-body-panel">
+            <div>
+              <span class="mono-tag" style="display:block; margin-bottom:6px;">EXTRACTED FIELDS FOR THIS DOCUMENT</span>
+              <div class="er-field-list" id="er-doc-fields-list"></div>
+            </div>
+
             <div class="er-coords-strip" id="er-coords-strip">
               <span class="er-link-indicator"><span class="er-link-dot"></span><span id="er-coords-text">Awaiting coordinates</span></span>
               <span class="mono-tag" id="er-coords-page">Page —</span>
@@ -741,6 +793,7 @@
                 <button type="button" class="btn btn-verified" id="btn-confirm-val">✓ Confirm Value</button>
                 <button type="button" class="btn btn-amber" id="btn-edit-val">✎ Edit Value</button>
                 <button type="button" class="btn btn-oxide" id="btn-flag-val">⚑ Flag</button>
+                <button type="button" class="btn" id="btn-na-val">∅ N/A or Missing</button>
               </div>
               <span class="mono-tag" id="decision-backend-note"></span>
             </div>
@@ -752,13 +805,25 @@
         </div>
       </div>
 
+      <!-- Document-level Review Progress & Completion -->
+      <div class="er-doc-progress-bar" id="er-doc-completion-bar">
+        <div>
+          <span class="mono-tag">DOCUMENT REVIEW PROGRESS</span>
+          <div style="font-size:13px; margin-top:2px;" id="er-doc-progress-summary">0 fields · 0 confirmed · 0 corrected · 0 flagged · 0 unresolved</div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <button type="button" class="btn btn-sm btn-verified" id="btn-mark-doc-complete" disabled>Mark Document Review Complete ✓</button>
+        </div>
+      </div>
+
       <div class="shortcut-bar">
         <span><kbd>Enter</kbd> Confirm &amp; Next</span>
         <span><kbd>E</kbd> Edit</span>
         <span><kbd>F</kbd> Flag</span>
-        <span><kbd>←</kbd> <kbd>→</kbd> Prev / Next Issue</span>
+        <span><kbd>←</kbd> <kbd>→</kbd> Prev / Next Field</span>
         <span><kbd>+</kbd> <kbd>−</kbd> Zoom Document</span>
         <span style="color:var(--ink-on-dark-muted);">Shortcuts pause automatically while typing</span>
+      </div>
       </div>
     </section>
 

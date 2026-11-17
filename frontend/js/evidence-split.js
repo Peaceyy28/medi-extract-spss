@@ -37,6 +37,7 @@ export function initViewerControls() {
 
   document.getElementById("btn-zoom-in").addEventListener("click", () => setZoom(viewerState.zoom + 0.15));
   document.getElementById("btn-zoom-out").addEventListener("click", () => setZoom(viewerState.zoom - 0.15));
+  document.getElementById("btn-fit-width").addEventListener("click", fitToWidth);
   document.getElementById("btn-fit-page").addEventListener("click", fitToPage);
   document.getElementById("btn-full-page").addEventListener("click", openFullPageModal);
   document.getElementById("btn-close-fullpage").addEventListener("click", closeFullPageModal);
@@ -102,7 +103,28 @@ function applyTransform() {
   wrap.style.transform = `translate(${viewerState.panX}px, ${viewerState.panY}px) scale(${viewerState.zoom})`;
 }
 
+export function fitToWidth() {
+  const stage = document.getElementById("viewer-stage");
+  const w = stage ? stage.clientWidth : 580;
+  const targetZoom = Math.max(0.6, Math.min(1.6, (w - 48) / 540));
+  viewerState.panX = 0;
+  viewerState.panY = 0;
+  setZoom(targetZoom);
+}
+
 export async function renderEvidenceSplit(item, doc, context, callbacks) {
+  const emptyEl = document.getElementById("er-split-empty");
+  const wsEl = document.getElementById("er-split-workspace");
+
+  if (!item && !doc) {
+    if (emptyEl) emptyEl.hidden = false;
+    if (wsEl) wsEl.hidden = true;
+    return;
+  }
+
+  if (emptyEl) emptyEl.hidden = true;
+  if (wsEl) wsEl.hidden = false;
+
   viewerState.activeItem = item;
   viewerState.activeDoc = doc;
   viewerState.currentPage = item ? item.pageNumber || 1 : 1;
@@ -112,7 +134,7 @@ export async function renderEvidenceSplit(item, doc, context, callbacks) {
   // Top progress & reference bar
   document.getElementById("split-progress-counter").textContent =
     context.totalInView > 0
-      ? `Issue ${context.positionIndex + 1} of ${context.totalInView}`
+      ? `Field ${context.positionIndex + 1} of ${context.totalInView}`
       : "Direct Document Inspection";
 
   document.getElementById("split-doc-ref").textContent = item
@@ -128,8 +150,68 @@ export async function renderEvidenceSplit(item, doc, context, callbacks) {
   // Render Left Document Viewer
   await renderDocumentPage();
 
-  // Render Right Machine Interpretation
+  // Render Right Machine Interpretation & Document Fields List
+  renderDocFieldsList(item, doc, context.docFields || [], callbacks);
   renderInterpretationPanel(item, doc, callbacks);
+  renderDocProgressBar(doc, context.docFields || [], callbacks);
+}
+
+function renderDocFieldsList(activeItem, doc, docFields, callbacks) {
+  const listEl = document.getElementById("er-doc-fields-list");
+  if (!listEl) return;
+
+  if (!docFields || docFields.length === 0) {
+    listEl.innerHTML = `<div class="mono-tag" style="color:var(--ink-muted); padding:6px 0;">${
+      doc ? "No extracted fields for this document yet (awaiting OCR)." : "No extracted fields."
+    }</div>`;
+    return;
+  }
+
+  listEl.innerHTML = "";
+  for (const fld of docFields) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `er-field-item ${activeItem && activeItem.id === fld.id ? "active" : ""}`;
+    const conf = typeof fld.ocrConfidence === "number" ? `${Math.round(fld.ocrConfidence * 100)}%` : "—";
+    const val = fld.correctedText !== undefined ? fld.correctedText : fld.extractedText || "(Blank)";
+    btn.innerHTML = `
+      <div>
+        <strong style="font-size:12.5px;">${escapeHtml(fld.fieldName)}</strong>
+        <span class="mono-tag" style="margin-left:6px;">p.${fld.pageNumber} · OCR ${conf}</span>
+        <div style="font-size:12px; color:var(--ink-secondary);">${escapeHtml(val)}</div>
+      </div>
+      ${formatStatusBadge(fld.reviewStatus)}
+    `;
+    btn.addEventListener("click", () => {
+      if (callbacks.onSelectField) callbacks.onSelectField(fld.id);
+    });
+    listEl.appendChild(btn);
+  }
+}
+
+function renderDocProgressBar(doc, docFields, callbacks) {
+  const summaryEl = document.getElementById("er-doc-progress-summary");
+  const completeBtn = document.getElementById("btn-mark-doc-complete");
+  if (!summaryEl || !completeBtn) return;
+
+  const total = docFields.length;
+  const confirmed = docFields.filter(
+    (f) => (f.reviewStatus === "VERIFIED" || f.reviewStatus === "NOT_APPLICABLE") && f.correctedText === undefined
+  ).length;
+  const corrected = docFields.filter((f) => f.correctedText !== undefined).length;
+  const flagged = docFields.filter((f) => f.reviewStatus === "FLAGGED").length;
+  const unresolved = docFields.filter(
+    (f) => f.reviewStatus === "AWAITING_REVIEW" || f.reviewStatus === "PROCESSING_FAILED"
+  ).length;
+
+  summaryEl.textContent = `${total} field(s) · ${confirmed} confirmed · ${corrected} corrected · ${flagged} flagged · ${unresolved} unresolved`;
+  completeBtn.disabled = total === 0 || unresolved > 0 || Boolean(doc?.reviewCompleted);
+  completeBtn.textContent = doc?.reviewCompleted
+    ? "✓ Document Review Completed"
+    : "Mark Document Review Complete ✓";
+  completeBtn.onclick = () => {
+    if (callbacks.onMarkDocComplete && doc) callbacks.onMarkDocComplete(doc.id);
+  };
 }
 
 async function renderDocumentPage() {
@@ -260,12 +342,16 @@ function renderInterpretationPanel(item, doc, callbacks) {
     document.getElementById("btn-confirm-val").disabled = true;
     document.getElementById("btn-edit-val").disabled = true;
     document.getElementById("btn-flag-val").disabled = true;
+    const naBtn = document.getElementById("btn-na-val");
+    if (naBtn) naBtn.disabled = true;
     return;
   }
 
   document.getElementById("btn-confirm-val").disabled = false;
   document.getElementById("btn-edit-val").disabled = false;
   document.getElementById("btn-flag-val").disabled = false;
+  const naBtn = document.getElementById("btn-na-val");
+  if (naBtn) naBtn.disabled = false;
 
   document.getElementById("interp-source-ref").textContent =
     `SOURCE: ${item.documentName} · PAGE ${item.pageNumber}`;
@@ -361,6 +447,8 @@ function renderInterpretationPanel(item, doc, callbacks) {
   document.getElementById("btn-confirm-val").onclick = () => callbacks.onDecision(item.id, "VERIFIED");
   document.getElementById("btn-flag-val").onclick = () => callbacks.onDecision(item.id, "FLAGGED");
   document.getElementById("btn-edit-val").onclick = () => openEditDrawer(item, callbacks);
+  const naBtn2 = document.getElementById("btn-na-val");
+  if (naBtn2) naBtn2.onclick = () => callbacks.onDecision(item.id, "NOT_APPLICABLE");
 }
 
 export function openEditDrawer(item, callbacks) {

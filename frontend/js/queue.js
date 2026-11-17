@@ -269,6 +269,8 @@ export function formatStatusBadge(status) {
   switch (status) {
     case "VERIFIED":
       return `<span class="status-badge verified">✓ Verified</span>`;
+    case "NOT_APPLICABLE":
+      return `<span class="status-badge">∅ N/A / Missing</span>`;
     case "FLAGGED":
       return `<span class="status-badge amber">⚑ Flagged</span>`;
     case "PROCESSING_FAILED":

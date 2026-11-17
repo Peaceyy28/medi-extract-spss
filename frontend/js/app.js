@@ -186,9 +186,22 @@ function bindNavigation() {
   document.getElementById("nav-studio").addEventListener("click", () => switchView("studio"));
   document.getElementById("nav-export").addEventListener("click", () => switchView("export"));
   document.getElementById("nav-settings").addEventListener("click", () => switchView("settings"));
-  document.getElementById("nav-split").addEventListener("click", () => {
-    if (appState.activeIssueId || appState.activeDirectDocId) {
-      switchView("split");
+  document.getElementById("nav-split").addEventListener("click", () => switchView("split"));
+  document.getElementById("er-btn-back-intake").addEventListener("click", () => switchView("intake"));
+  document.getElementById("er-btn-go-observatory").addEventListener("click", () => switchView("analytics"));
+  document.getElementById("er-empty-go-intake").addEventListener("click", () => switchView("intake"));
+  document.getElementById("er-empty-load-synth").addEventListener("click", () => {
+    loadSyntheticDevFixture();
+    switchView("split");
+  });
+  document.getElementById("er-split-doc-select").addEventListener("change", (e) => {
+    const docId = e.target.value;
+    const firstIssue = appState.queueItems.find((i) => i.documentId === docId);
+    if (firstIssue) {
+      openIssueInSplit(firstIssue.id);
+    } else {
+      const doc = appState.documents.find((d) => d.id === docId);
+      if (doc) openDocumentDirectly(doc);
     }
   });
 
@@ -915,21 +928,96 @@ function renderAll() {
 
   renderExportHubScreen(appState, {});
 
-  document.getElementById("nav-split").disabled = !appState.activeIssueId && !appState.activeDirectDocId;
+  renderEvidenceRoomState();
+}
+
+function renderEvidenceRoomState() {
+  const proj = appState.projects.find((p) => p.id === appState.activeProjectId) || null;
+  const batch = appState.batches.find((b) => b.id === appState.activeBatchId) || null;
+
+  document.getElementById("er-split-proj-label").textContent = proj ? `PROJECT: ${proj.name.toUpperCase()}` : "PROJECT: UNASSIGNED";
+  document.getElementById("er-split-batch-label").textContent = batch ? `${batch.reference} — ${batch.name}` : "No Active Batch";
+
+  const resolvedCount = appState.queueItems.filter(
+    (i) => i.reviewStatus === "VERIFIED" || i.reviewStatus === "NOT_APPLICABLE"
+  ).length;
+  document.getElementById("er-split-queue-progress").textContent = `${resolvedCount} / ${appState.queueItems.length} resolved`;
+
+  // Populate document switcher
+  const docSel = document.getElementById("er-split-doc-select");
+  if (docSel) {
+    docSel.innerHTML = appState.documents
+      .map((d) => `<option value="${d.id}">${d.docRef || d.id} — ${d.name}</option>`)
+      .join("");
+  }
+
+  // Auto-resolve active item/doc if user navigated directly to Evidence Room
+  if (!appState.activeIssueId && !appState.activeDirectDocId) {
+    if (appState.queueItems.length > 0) {
+      appState.activeIssueId = appState.queueItems[0].id;
+    } else if (appState.documents.length > 0) {
+      appState.activeDirectDocId = appState.documents[0].id;
+    }
+  }
+
+  const item = appState.queueItems.find((i) => i.id === appState.activeIssueId) || null;
+  const doc = item
+    ? appState.documents.find((d) => d.id === item.documentId) || null
+    : appState.documents.find((d) => d.id === appState.activeDirectDocId) || null;
+
+  document.getElementById("er-split-doc-title").textContent = doc
+    ? `${doc.docRef || doc.id} — ${doc.name}`
+    : item
+      ? item.documentName
+      : "No Document Selected";
+
+  const docBadge = document.getElementById("er-split-doc-status");
+  if (doc?.reviewCompleted) {
+    docBadge.className = "status-badge verified";
+    docBadge.textContent = "✓ Review Completed";
+  } else if (item || doc) {
+    docBadge.className = "status-badge mm-awaiting";
+    docBadge.textContent = "◷ In Verification";
+  } else {
+    docBadge.className = "status-badge mm-awaiting";
+    docBadge.textContent = "◷ Awaiting Evidence";
+  }
+
+  if (doc && docSel) docSel.value = doc.id;
+
+  const docFields = doc ? appState.queueItems.filter((i) => i.documentId === doc.id) : item ? [item] : [];
+  const currentList = filterQueueItems(appState.queueItems, appState.filters);
+  const posIdx = item ? currentList.findIndex((i) => i.id === item.id) : -1;
+
+  renderEvidenceSplit(
+    item,
+    doc,
+    {
+      positionIndex: posIdx,
+      totalInView: currentList.length,
+      docFields
+    },
+    {
+      onDecision: handleDecision,
+      onEditSave: handleEditSave,
+      onSelectField: (fieldId) => openIssueInSplit(fieldId),
+      onMarkDocComplete: (docId) => {
+        const d = appState.documents.find((x) => x.id === docId);
+        if (d) {
+          d.reviewCompleted = true;
+          renderAll();
+          showToast(`Marked ${d.name} review complete.`);
+        }
+      }
+    }
+  );
 }
 
 function openDocumentDirectly(doc) {
   appState.activeIssueId = null;
   appState.activeDirectDocId = doc.id;
-  document.getElementById("nav-split").disabled = false;
   switchView("split");
-
-  renderEvidenceSplit(
-    null,
-    doc,
-    { positionIndex: -1, totalInView: 0 },
-    { onDecision: () => {}, onEditSave: () => {} }
-  );
+  renderEvidenceRoomState();
 }
 
 function openIssueInSplit(issueId) {
@@ -938,26 +1026,13 @@ function openIssueInSplit(issueId) {
 
   appState.activeIssueId = issueId;
   appState.activeDirectDocId = null;
-  document.getElementById("nav-split").disabled = false;
   switchView("split");
-
-  const doc = appState.documents.find((d) => d.id === item.documentId) || null;
-  const currentList = filterQueueItems(appState.queueItems, appState.filters);
-  const posIdx = currentList.findIndex((i) => i.id === issueId);
 
   document.getElementById("decision-backend-note").textContent = appState.syntheticMode
     ? "Synthetic test session"
     : "Local decision log";
 
-  renderEvidenceSplit(
-    item,
-    doc,
-    { positionIndex: posIdx, totalInView: currentList.length },
-    {
-      onDecision: handleDecision,
-      onEditSave: handleEditSave
-    }
-  );
+  renderEvidenceRoomState();
 }
 
 async function handleDecision(issueId, newStatus) {
@@ -1238,6 +1313,24 @@ function loadSyntheticDevFixture() {
       reviewStatus: "AWAITING_REVIEW",
       severity: "MEDIUM",
       bbox: { xPct: 5, yPct: 29, wPct: 84, hPct: 10 },
+      auditHistory: []
+    },
+    {
+      id: "iss_1b",
+      documentId: "SYNTH-DOC-01",
+      documentName: "synthetic_form_01.png",
+      pageNumber: 2,
+      totalPages: 4,
+      fieldName: "Age",
+      reasonCode: "LOW_CONFIDENCE",
+      reasonLabel: "Handwritten age verification",
+      extractedText: "44",
+      ocrConfidence: 0.84,
+      codebookSimilarity: null,
+      validationMessage: "Age extracted at 84% confidence; verify against header.",
+      reviewStatus: "AWAITING_REVIEW",
+      severity: "LOW",
+      bbox: { xPct: 68, yPct: 15, wPct: 16, hPct: 6 },
       auditHistory: []
     },
     {

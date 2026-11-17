@@ -145,6 +145,7 @@ function switchView(viewName) {
   // Show project/batch hierarchy breadcrumb inside workflow screens
   const showCrumb = viewName === "intake" || viewName === "queue" || viewName === "split";
   document.getElementById("hierarchy-breadcrumb-bar").hidden = !showCrumb;
+  window.scrollTo({ top: 0, behavior: "instant" });
 
   if (viewName !== "split") {
     renderAll();

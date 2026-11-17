@@ -27,6 +27,11 @@
   background: var(--accent-blue);
   color: #FFFFFF;
   border-color: var(--accent-blue);
+  text-decoration: none;
+}
+
+a.btn {
+  text-decoration: none;
 }
 
 .btn-electric:hover:not(:disabled) {
@@ -136,19 +141,19 @@
 
 .pi-doc-sheet {
   position: relative;
-  width: 310px;
+  width: 300px;
   background: #FFFFFF;
   border: 1.5px solid var(--ink-main);
   border-radius: var(--radius-sm);
   padding: 18px;
   box-shadow: var(--shadow-md);
-  transform: translate(-36px, -12px) rotate(-1.5deg);
+  transform: translate(-52px, -34px) rotate(-1.5deg);
   z-index: 2;
   transition: transform 0.22s ease;
 }
 
 .pi-composition:hover .pi-doc-sheet {
-  transform: translate(-38px, -16px) rotate(-0.5deg);
+  transform: translate(-54px, -38px) rotate(-0.5deg);
 }
 
 .pi-doc-header {
@@ -186,13 +191,13 @@
 
 .pi-data-node {
   position: absolute;
-  right: 22px;
-  bottom: 24px;
-  width: 248px;
+  right: 16px;
+  bottom: 16px;
+  width: 242px;
   background: var(--bg-forest);
   color: #FFFFFF;
   border-radius: var(--radius-md);
-  padding: 16px;
+  padding: 15px;
   box-shadow: var(--shadow-md);
   z-index: 3;
   transition: transform 0.22s ease;

@@ -5,6 +5,7 @@
 
 import { checkBackendConnection, uploadFilesToBackend, submitDecisionToBackend } from "./api.js";
 import { validateUploadFile, inspectLocalFile } from "./upload.js";
+import { renderProjectIndex } from "./project-index.js";
 import {
   generateBatchReference,
   generateDocumentReference,
@@ -19,14 +20,18 @@ import { renderBatchSummary, renderQueueTable, filterQueueItems } from "./queue.
 import { initViewerControls, renderEvidenceSplit, openEditDrawer, setZoom, viewerState } from "./evidence-split.js";
 
 const appState = {
-  view: "intake", // "intake" | "queue" | "split"
+  view: "home", // "home" | "intake" | "queue" | "split" | "analytics" | "settings"
   syntheticMode: false,
+  projectsLoading: false,
+  projectsError: null,
   projects: [
     {
       id: "proj_oyshia_default",
       reference: "PRJ-OYSHIA-2026",
       name: "OYSHIA Encounter Forms",
-      description: "Primary encounter record intake workspace",
+      description: "Primary encounter record intake and verification workspace for participating facilities.",
+      setupMode: "SPSS Template",
+      templateName: null,
       requiresFacility: true,
       facilities: []
     }
@@ -84,13 +89,31 @@ async function refreshBackendStatus() {
 }
 
 function bindNavigation() {
+  document.getElementById("brand-home-link").addEventListener("click", () => switchView("home"));
+  document.getElementById("btn-crumb-home").addEventListener("click", () => switchView("home"));
+  document.getElementById("nav-home").addEventListener("click", () => switchView("home"));
+  document.getElementById("nav-projects").addEventListener("click", () => {
+    switchView("home");
+    document.getElementById("pi-projects-anchor")?.scrollIntoView({ behavior: "smooth" });
+  });
   document.getElementById("nav-intake").addEventListener("click", () => switchView("intake"));
   document.getElementById("nav-queue").addEventListener("click", () => switchView("queue"));
+  document.getElementById("nav-analytics").addEventListener("click", () => switchView("analytics"));
+  document.getElementById("nav-settings").addEventListener("click", () => switchView("settings"));
   document.getElementById("nav-split").addEventListener("click", () => {
     if (appState.activeIssueId || appState.activeDirectDocId) {
       switchView("split");
     }
   });
+
+  document.getElementById("wf-stage-receive").addEventListener("click", () => switchView("intake"));
+  document.getElementById("wf-stage-verify").addEventListener("click", () => switchView("queue"));
+  document.getElementById("btn-hero-create-project").addEventListener("click", () => openProjectModal("sav"));
+  document.getElementById("btn-notifications").addEventListener("click", () => {
+    const unresolved = appState.queueItems.filter((i) => i.reviewStatus !== "VERIFIED").length;
+    showToast(unresolved > 0 ? `${unresolved} review item(s) awaiting attention.` : "No unread workstation alerts.");
+  });
+
   document.getElementById("btn-go-review-from-intake").addEventListener("click", () => switchView("queue"));
   document.getElementById("btn-back-to-queue").addEventListener("click", () => switchView("queue"));
 
@@ -111,13 +134,17 @@ function bindNavigation() {
 
 function switchView(viewName) {
   appState.view = viewName;
-  document.getElementById("view-intake").hidden = viewName !== "intake";
-  document.getElementById("view-queue").hidden = viewName !== "queue";
-  document.getElementById("view-split").hidden = viewName !== "split";
+  ["home", "intake", "queue", "split", "analytics", "settings"].forEach((v) => {
+    const el = document.getElementById("view-" + v);
+    if (el) el.hidden = v !== viewName;
+    const nav = document.getElementById("nav-" + v);
+    if (nav) nav.classList.toggle("active", v === viewName);
+  });
+  document.getElementById("nav-projects").classList.remove("active");
 
-  document.getElementById("nav-intake").classList.toggle("active", viewName === "intake");
-  document.getElementById("nav-queue").classList.toggle("active", viewName === "queue");
-  document.getElementById("nav-split").classList.toggle("active", viewName === "split");
+  // Show project/batch hierarchy breadcrumb inside workflow screens
+  const showCrumb = viewName === "intake" || viewName === "queue" || viewName === "split";
+  document.getElementById("hierarchy-breadcrumb-bar").hidden = !showCrumb;
 
   if (viewName !== "split") {
     renderAll();
@@ -150,8 +177,38 @@ function bindProjectAndBatchControls() {
   document.getElementById("btn-intake-create-batch").addEventListener("click", openBatchModal);
   document.getElementById("btn-close-batch-modal").addEventListener("click", closeBatchModal);
   document.getElementById("btn-cancel-batch-modal").addEventListener("click", closeBatchModal);
+  document.getElementById("btn-close-project-modal").addEventListener("click", closeProjectModal);
+  document.getElementById("btn-cancel-project-modal").addEventListener("click", closeProjectModal);
   document.getElementById("btn-close-doc-detail").addEventListener("click", () => {
     document.getElementById("doc-detail-modal").hidden = true;
+  });
+
+  document.getElementById("project-create-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = document.getElementById("pf-name").value.trim();
+    const desc = document.getElementById("pf-desc").value.trim();
+    const mode = document.getElementById("pf-setup-mode").value;
+    const fileInput = document.getElementById("pf-template-file");
+    const tplFile = fileInput.files?.[0] || null;
+    if (!name) return;
+
+    const newProj = {
+      id: `proj_${Date.now()}`,
+      reference: `PRJ-${new Date().getFullYear()}-${String(appState.projects.length + 1).padStart(3, "0")}`,
+      name,
+      description: desc || "Clinical encounter data processing workspace.",
+      setupMode: mode === "sav" ? "SPSS Template (.sav)" : "Questionnaire PDF",
+      templateName: tplFile ? tplFile.name : null,
+      requiresFacility: true,
+      facilities: []
+    };
+
+    appState.projects.unshift(newProj);
+    appState.activeProjectId = newProj.id;
+    appState.activeBatchId = null;
+    closeProjectModal();
+    renderAll();
+    showToast(`Created project ${newProj.reference}: ${newProj.name}`);
   });
 
   document.getElementById("batch-create-form").addEventListener("submit", (e) => {
@@ -191,6 +248,19 @@ function bindProjectAndBatchControls() {
     renderAll();
     showToast(`Created batch ${newBatch.reference}: ${newBatch.name}`);
   });
+}
+
+function openProjectModal(defaultMode = "sav") {
+  document.getElementById("pf-name").value = "";
+  document.getElementById("pf-desc").value = "";
+  document.getElementById("pf-setup-mode").value = defaultMode;
+  document.getElementById("pf-template-file").value = "";
+  document.getElementById("project-modal").hidden = false;
+  document.getElementById("pf-name").focus();
+}
+
+function closeProjectModal() {
+  document.getElementById("project-modal").hidden = true;
 }
 
 function openBatchModal() {
@@ -433,6 +503,22 @@ function bindQueueFilters() {
    Unified Render Pipeline
    ========================================================================== */
 function renderAll() {
+  // Update Screen 01: The Project Index
+  document.getElementById("pi-project-count-label").textContent =
+    `${appState.projects.length} project${appState.projects.length === 1 ? "" : "s"} configured`;
+  document.getElementById("notif-count").textContent =
+    String(appState.queueItems.filter((i) => i.reviewStatus !== "VERIFIED").length);
+
+  renderProjectIndex(appState, {
+    onOpenProject: (projId) => {
+      appState.activeProjectId = projId;
+      const projBatches = appState.batches.filter((b) => b.projectId === projId);
+      appState.activeBatchId = projBatches[0]?.id || null;
+      switchView("intake");
+    },
+    onCreateProject: (mode) => openProjectModal(mode)
+  });
+
   // Sync Project & Batch dropdowns
   const projSelect = document.getElementById("select-project");
   projSelect.innerHTML = appState.projects

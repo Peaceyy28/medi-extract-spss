@@ -1,0 +1,434 @@
+/* ==========================================================================
+   MediExtract — Screen 01: The Project Index
+   Visual Identity: White (#FFFFFF), Electric Blue (#477FF5),
+   Deep Forest (#183B35), Signal Lime (#C5E86C), Coral (#FF785E), Ink (#20252D)
+   ========================================================================== */
+
+.brand-mark-svg {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.topbar-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--rule-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-main);
+}
+
+.btn-electric {
+  background: var(--accent-blue);
+  color: #FFFFFF;
+  border-color: var(--accent-blue);
+}
+
+.btn-electric:hover:not(:disabled) {
+  background: var(--accent-blue-hover);
+  border-color: var(--accent-blue-hover);
+}
+
+.btn-lime {
+  background: var(--accent-lime);
+  color: var(--bg-forest);
+  border-color: var(--bg-forest);
+  font-weight: 600;
+}
+
+.btn-lime:hover:not(:disabled) {
+  background: #B8DF58;
+}
+
+/* --------------------------------------------------------------------------
+   Hero Section: Editorial Display + Layered Clinical Document Composition
+   -------------------------------------------------------------------------- */
+.pi-hero {
+  padding: 36px 0 48px;
+  border-bottom: 1px solid var(--rule-hairline);
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 44px;
+  align-items: center;
+}
+
+.pi-index-num {
+  font-family: var(--font-display);
+  font-size: clamp(54px, 6vw, 84px);
+  line-height: 0.9;
+  color: var(--bg-light-blue);
+  -webkit-text-stroke: 1.5px var(--accent-blue);
+  font-weight: 400;
+  user-select: none;
+  margin-bottom: 10px;
+}
+
+.pi-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-blue);
+  margin-bottom: 12px;
+}
+
+.pi-hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(40px, 4.8vw, 64px);
+  line-height: 1.03;
+  letter-spacing: -0.025em;
+  font-weight: 400;
+  margin: 0 0 18px;
+  color: var(--ink-main);
+}
+
+.pi-hero-title em {
+  font-style: italic;
+  color: var(--accent-blue);
+}
+
+.pi-hero-sub {
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+  max-width: 480px;
+  margin: 0 0 28px;
+}
+
+.pi-hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Layered Clinical Document Composition */
+.pi-composition {
+  position: relative;
+  min-height: 410px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--rule-hairline);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pi-comp-grid-bg {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(71, 127, 245, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(71, 127, 245, 0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+}
+
+.pi-doc-sheet {
+  position: relative;
+  width: 310px;
+  background: #FFFFFF;
+  border: 1.5px solid var(--ink-main);
+  border-radius: var(--radius-sm);
+  padding: 18px;
+  box-shadow: var(--shadow-md);
+  transform: translate(-36px, -12px) rotate(-1.5deg);
+  z-index: 2;
+  transition: transform 0.22s ease;
+}
+
+.pi-composition:hover .pi-doc-sheet {
+  transform: translate(-38px, -16px) rotate(-0.5deg);
+}
+
+.pi-doc-header {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-muted);
+  border-bottom: 1px solid var(--rule-hairline);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+.pi-doc-handwriting {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 21px;
+  color: var(--ink-main);
+  background: var(--bg-light-blue);
+  border-left: 3px solid var(--accent-blue);
+  padding: 10px 12px;
+  margin: 10px 0;
+}
+
+.pi-coral-marker {
+  display: inline-block;
+  background: var(--accent-coral);
+  color: #FFFFFF;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 3px;
+}
+
+.pi-data-node {
+  position: absolute;
+  right: 22px;
+  bottom: 24px;
+  width: 248px;
+  background: var(--bg-forest);
+  color: #FFFFFF;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-md);
+  z-index: 3;
+  transition: transform 0.22s ease;
+}
+
+.pi-composition:hover .pi-data-node {
+  transform: translateY(-4px);
+}
+
+.pi-lime-pill {
+  display: inline-block;
+  background: var(--accent-lime);
+  color: var(--bg-forest);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.pi-connector-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* --------------------------------------------------------------------------
+   Project Collection (Varied Visual Compositions)
+   -------------------------------------------------------------------------- */
+.pi-section {
+  padding: 44px 0;
+  border-bottom: 1px solid var(--rule-hairline);
+}
+
+.pi-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.pi-section-title {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  margin: 4px 0 0;
+}
+
+.pi-projects-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 18px;
+}
+
+.proj-panel {
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid var(--rule-hairline);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.proj-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Lead Project: Deep Forest (#183B35) */
+.proj-panel.forest {
+  grid-column: span 7;
+  background: var(--bg-forest);
+  color: #FFFFFF;
+  border-color: var(--bg-forest);
+}
+
+.proj-panel.forest .mono-tag {
+  color: var(--ink-on-forest-muted);
+}
+
+/* Secondary Project: Light Blue (#DCE8FF) */
+.proj-panel.lightblue {
+  grid-column: span 5;
+  background: var(--bg-light-blue);
+  color: var(--ink-main);
+  border-color: #BDD2FC;
+}
+
+/* Additional Projects: Crisp White (#FFFFFF) */
+.proj-panel.clean {
+  grid-column: span 6;
+  background: #FFFFFF;
+  color: var(--ink-main);
+}
+
+/* Create New Project Entry Panel */
+.proj-create-panel {
+  grid-column: span 5;
+  background: #FFFFFF;
+  border: 1.5px dashed var(--accent-blue);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.proj-create-panel:hover {
+  background: var(--bg-subtle);
+  border-color: var(--ink-main);
+}
+
+.proj-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.15;
+  margin: 6px 0 8px;
+}
+
+.proj-meta-strip {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid rgba(128, 128, 128, 0.22);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   Expressive 4-Stage Workflow Overview (01 Receive -> 04 Analyse)
+   -------------------------------------------------------------------------- */
+.workflow-track {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  padding-top: 12px;
+}
+
+.workflow-track::before {
+  content: "";
+  position: absolute;
+  top: 42px;
+  left: 48px;
+  right: 48px;
+  height: 1.5px;
+  background: repeating-linear-gradient(
+    to right,
+    var(--accent-blue) 0px,
+    var(--accent-blue) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  z-index: 0;
+}
+
+.wf-node {
+  position: relative;
+  z-index: 1;
+  background: #FFFFFF;
+  border: 1px solid var(--rule-hairline);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.wf-node:hover {
+  border-color: var(--accent-blue);
+  transform: translateY(-2px);
+}
+
+.wf-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  border: 1.5px solid var(--accent-blue);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--accent-blue);
+  margin-bottom: 6px;
+}
+
+.wf-node.active-stage .wf-num {
+  background: var(--accent-blue);
+  color: #FFFFFF;
+}
+
+.wf-node h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.wf-node p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-secondary);
+}
+
+/* Placeholder / Boundary Views (Analytics & Settings) */
+.boundary-section {
+  padding: 40px 0;
+}
+
+@media (max-width: 1024px) {
+  .pi-hero,
+  .workflow-track {
+    grid-template-columns: 1fr;
+  }
+  .workflow-track::before {
+    display: none;
+  }
+  .proj-panel.forest,
+  .proj-panel.lightblue,
+  .proj-panel.clean,
+  .proj-create-panel {
+    grid-column: span 12;
+  }
+}

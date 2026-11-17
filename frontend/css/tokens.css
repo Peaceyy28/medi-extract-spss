@@ -1,53 +1,72 @@
 /* ==========================================================================
-   MediExtract — The Evidence Lab Design Tokens
-   Palette: Archive Paper (#F3F0E8), Clean Sheet (#FBFAF6), Carbon Ink (#202824),
-            Deep Graphite (#17201D), Oxide Red (#B9553D), Instrument Amber (#D5A34E),
-            Verified Green (#477660), Technical Grey (#858B83)
+   MediExtract — Approved Visual Identity Tokens
+   White (#FFFFFF) dominant, Electric Blue (#477FF5), Deep Forest (#183B35),
+   Signal Lime (#C5E86C), Coral (#FF785E), Ink (#20252D), Light Blue (#DCE8FF)
    ========================================================================== */
 
 :root {
-  /* Surfaces */
-  --bg-archive: #F3F0E8;
-  --bg-sheet: #FBFAF6;
-  --bg-sheet-alt: #EAE6DC;
-  --bg-graphite: #17201D;
-  --bg-graphite-elevated: #202C28;
+  /* Core Surfaces */
+  --bg-canvas: #FFFFFF;
+  --bg-surface: #FFFFFF;
+  --bg-subtle: #F4F7FB;
+  --bg-light-blue: #DCE8FF;
+  --bg-forest: #183B35;
+  --bg-forest-elevated: #214B44;
 
   /* Ink & Rules */
-  --ink-carbon: #202824;
-  --ink-secondary: #48504B;
-  --ink-grey: #858B83;
-  --ink-on-dark: #F3F0E8;
-  --ink-on-dark-muted: #A4ABA4;
+  --ink-main: #20252D;
+  --ink-secondary: #4E5663;
+  --ink-muted: #76808F;
+  --ink-on-forest: #FFFFFF;
+  --ink-on-forest-muted: #B6CBC6;
 
-  --rule-hairline: #DCD7CA;
-  --rule-strong: #BFC5BC;
-  --rule-dark: #2E3B36;
+  --rule-hairline: #E3E8F0;
+  --rule-strong: #C5D0E0;
 
-  /* Semantic Signals (Always paired with icon + text label) */
-  --signal-verified: #477660;
-  --signal-verified-bg: #EBF2EE;
-  --signal-verified-border: #B8CFC3;
+  /* Brand & Expressive Accents */
+  --accent-blue: #477FF5;
+  --accent-blue-hover: #356AE0;
+  --accent-lime: #C5E86C;
+  --accent-coral: #FF785E;
+  --accent-coral-soft: #FFF0ED;
 
-  --signal-amber: #D5A34E;
-  --signal-amber-ink: #7A5614;
-  --signal-amber-bg: #FAF3E3;
-  --signal-amber-border: #E8CFA0;
+  /* Semantic Statuses (Paired with icon + text) */
+  --signal-verified: #183B35;
+  --signal-verified-bg: #EAF4EF;
+  --signal-verified-border: #B3D4C5;
 
-  --signal-oxide: #B9553D;
-  --signal-oxide-bg: #F9ECE9;
-  --signal-oxide-border: #E2B6AB;
+  --signal-amber: #C47F17;
+  --signal-amber-bg: #FEF6E6;
+  --signal-amber-border: #F2D399;
+
+  --signal-oxide: #D94B32;
+  --signal-oxide-bg: #FFF0ED;
+  --signal-oxide-border: #FFC4B8;
 
   /* Typography */
+  --font-display: "Newsreader", Georgia, "Times New Roman", serif;
   --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
 
-  /* Radii & Elevation (Restrained, architectural, no excessive rounding) */
-  --radius-sm: 3px;
-  --radius-md: 5px;
-  --shadow-sheet: 0 1px 2px rgba(23, 32, 29, 0.05);
-  --shadow-focus: 0 0 0 2px var(--bg-sheet), 0 0 0 4px var(--ink-carbon);
+  /* Radii & Elevation */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 2px 6px rgba(32, 37, 45, 0.05);
+  --shadow-md: 0 12px 32px rgba(32, 37, 45, 0.08);
+
+  /* Compatibility aliases for Receiving Desk & Evidence Split */
+  --bg-archive: var(--bg-canvas);
+  --bg-sheet: var(--bg-surface);
+  --bg-sheet-alt: var(--bg-subtle);
+  --bg-graphite: var(--bg-forest);
+  --bg-graphite-elevated: var(--bg-forest-elevated);
+  --ink-carbon: var(--ink-main);
+  --ink-grey: var(--ink-muted);
+  --ink-on-dark: var(--ink-on-forest);
+  --ink-on-dark-muted: var(--ink-on-forest-muted);
+  --rule-dark: #2C5C54;
+  --signal-amber-ink: #8C5808;
 
   color-scheme: light;
 }

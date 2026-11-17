@@ -151,6 +151,11 @@ type RuleSeverity = "WARNING" | "BLOCKER";
         "case_index": 4102,
         "rule_id": "VR-02",
         "description": "Male patient (Sex=1) coded with Diagnosis=43 (FIBROID)"
+      },
+      {
+        "case_index": 5819,
+        "rule_id": "VR-04-RX",
+        "description": "Diagnosis-to-Drug Mismatch: Prescribed Metformin (54) & Amlodipine (14) with only Malaria (4.0) listed under Diagnoses"
       }
     ]
   },
@@ -210,12 +215,36 @@ Accepts `multipart/form-data` with $2\text{–}50+$ `.sav` files and returns a c
       "status": "AUTO_HEALED"
     }
   ],
-  "cross_file_duplicates_detected": 19
+  "cross_file_duplicates_detected": 19,
+  "clerk_quality_scorecard": [
+    {
+      "clerk_id": 1,
+      "source_file": "Clerk_Peace_Oct.sav",
+      "rows_contributed": 980,
+      "missing_rate_pct": 0.2,
+      "logic_errors_count": 0,
+      "codebook_collisions_count": 0
+    },
+    {
+      "clerk_id": 2,
+      "source_file": "Clerk_Bola_Oct.sav",
+      "rows_contributed": 840,
+      "missing_rate_pct": 3.4,
+      "logic_errors_count": 4,
+      "codebook_collisions_count": 1
+    }
+  ]
 }
 ```
 
 ### 5.2 Execute Master Merge (`POST /api/v1/projects/{project_id}/merge/execute`)
-Applies user-approved variable mappings, executes vectorized codebook recoding, removes cross-file duplicates, appends to the project's master dataset, and returns the download URL for the unified `MASTER_MERGED.sav`.
+Applies user-approved variable mappings, executes vectorized codebook recoding, removes cross-file duplicates, appends provenance columns (`Source_Clerk_ID`, `Source_File_Name`, `Orig_Row_No`), and returns the download URL for the unified `MASTER_MERGED.sav`.
+
+### 5.3 Auto-Recode & Computed Variables (`POST /api/v1/projects/{project_id}/transform/autorecode`)
+Automatically generates and appends derived SPSS variables with complete Value Labels:
+- `Age_Group` (`1=Under 5`, `2=5-17`, `3=18-35`, `4=36-59`, `5=60+ Elderly/Pensioner`)
+- `Primary_Disease_Category` (`1=Cardiovascular/HTN`, `2=Infectious/Malaria`, `3=Metabolic/Diabetes`, `4=Musculoskeletal`, `5=Gastrointestinal/PUD`, `6=Maternal/Reproductive`, `7=Respiratory/ENT`, `8=Other`)
+- `Comorbidity_Count` & `Polypharmacy_Count`
 
 ---
 

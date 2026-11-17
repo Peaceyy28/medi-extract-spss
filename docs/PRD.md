@@ -32,7 +32,7 @@ This legacy manual entry workflow has four critical bottlenecks:
 
 ---
 
-## 3. Detailed Feature Specifications (10 Core Pillars)
+## 3. Detailed Feature Specifications (11 Core Pillars)
 
 ### Feature 1: Dual-Mode Ingestion (Scanner Hot Folder + Manual Upload)
 * **Automatic Hot-Folder Watcher:** Background process continuously monitors `C:\EncounterForms\ScanQueue`. The moment a physical scanner drops a PDF/TIFF, the file is ingested within 1 second.
@@ -63,11 +63,12 @@ This legacy manual entry workflow has four critical bottlenecks:
   * Asks in plain English: *"The doctor wrote this. Does it say **'MSS OF THE WRIST'**? [Yes, Save] [Change]"*.
 * **Rapid Review:** Keyboard-driven review (`Enter` to accept) cuts verification time to seconds per form.
 
-### Feature 6: SPSS-Grade Real-Time Validation & Quality Reporting
+### Feature 6: SPSS-Grade Real-Time Validation, Prescription Audit & Quality Reporting
 * **Live Constraint Checks:**
   * Single-variable range checks (e.g. `Age` $\ge 0$ and $\le 115$).
   * Allowed codebook membership (flags codes outside the official list).
   * Cross-variable clinical contradictions (e.g. Male patients with pregnancy/miscarriage diagnoses).
+  * **Diagnosis-to-Drug Clinical Plausibility Check (Prescription Audit):** Cross-checks prescribed medications (`Treatment1`–`Treatment7`) against all listed diagnoses (`Diagnosis1`–`Diagnosis7`). Flags cases where chronic or specialized drugs (e.g., `Amlodipine`, `Metformin`, `Lisinopril`) are dispensed without a matching clinical indication recorded on the encounter sheet.
   * Deduplication check ($O(1)$ hash check on `OYSHIA_ID` + `Date` + `Facility`).
 * **Detailed Data Analyst Audit Report:**
   * Complete missing value analysis across all variables.
@@ -99,4 +100,12 @@ This legacy manual entry workflow has four critical bottlenecks:
   2. **Semantic Codebook Reconciliation (By Meaning, Not Raw Number):** Reads every file's `variable_value_labels` dictionary before merging. If File A maps `265 -> Eczema` and File B maps `265 -> Asthma`, the engine detects the collision, assigns `265 -> Eczema` and `266 -> Asthma` in the unified master codebook, and **automatically recodes File B's case values** from `265` to `266`. Conversely, if two clerks assigned different numbers to the *same* diagnosis (`265 -> Asthma` and `270 -> Asthma`), both are unified under one canonical code.
   3. **Type & String-Width Auto-Healing:** Automatically coerces mismatched types (e.g., String `"26"` $\rightarrow$ Numeric `26.0`) and expands string variable widths to the maximum length across all uploaded files so zero text is truncated.
   4. **Cross-Clerk Deduplication ($O(1)$ Hash Set):** Detects and removes duplicate patient encounters entered across different laptops (`OYSHIA_ID + Date + Facility`).
-* **Output:** Produces a single, 100% harmonized `MASTER_MERGED.sav` file alongside a **Merge & Harmonization Audit Report** detailing every reconciled variable and recoded value label.
+  5. **Clerk Source Provenance Tracking (`Entered_By_Clerk` & `Orig_Row_No`):** Automatically appends provenance variables (`Source_Clerk_ID`, `Source_File_Name`, `Orig_Row_No`) to every row in `MASTER_MERGED.sav` alongside a **Per-Clerk Quality & Error Scorecard**, enabling supervisors to trace any discrepancy directly back to the exact clerk and original file row.
+* **Output:** Produces a single, 100% harmonized `MASTER_MERGED.sav` file alongside a **Merge & Harmonization Audit Report** detailing every reconciled variable, recoded value label, and per-clerk accuracy score.
+
+### Feature 11: 1-Click SPSS Auto-Recode & Computed Variables Engine (`Transform → Recode` Automation)
+* **The Problem Solved:** After data cleaning, biostatisticians typically spend hours writing SPSS `RECODE` and `COMPUTE` syntax to group continuous and granular variables before running frequency tables and cross-tabulations.
+* **Automated Derived Variables (With Full SPSS Value Labels):**
+  * **`Age_Group`:** Automatically recodes continuous `Age` into standard epidemiological brackets (`1 = Under 5`, `2 = 5–17`, `3 = 18–35`, `4 = 36–59`, `5 = 60+ Elderly/Pensioner`).
+  * **`Primary_Disease_Category`:** Groups the 178 granular diagnosis codes into broad clinical classes (`1 = Cardiovascular/HTN`, `2 = Infectious/Malaria`, `3 = Metabolic/Diabetes`, `4 = Musculoskeletal`, `5 = Gastrointestinal/PUD`, `6 = Maternal/Reproductive`, `7 = Respiratory/ENT`, `8 = Other`).
+  * **`Comorbidity_Count` & `Polypharmacy_Count`:** Automatically counts the number of active diagnoses (`Diagnosis1`–`Diagnosis7`) and prescribed drugs (`Treatment1`–`Treatment7`) per patient encounter.

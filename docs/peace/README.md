@@ -30,11 +30,11 @@
 
 - [ ] **P4 — Virtualized Dual-View Web SPSS Matrix & Analyst Reports UI** (`feat/p4-web-spss-and-reports`)
   - [ ] Build $O(K)$ virtualized Data View spreadsheet (60 FPS on 10,981+ cases) and Variable View codebook inspector.
-  - [ ] Implement the live `1 ↔ Words` Value Labels toggle button and cell-click cropped paper provenance popover.
-  - [ ] Build the Filtered Data Analyst Validation Report interface (`FacilityPHC`, `LGA`, `Month`, `Issue Type` filters + scorecards & charts).
+  - [ ] Implement the live `1 ↔ Words` Value Labels toggle button, 1-Click Auto-Recode button (`Age_Group` & `Primary_Disease_Category`), and cell-click cropped paper provenance popover.
+  - [ ] Build the Filtered Data Analyst Validation Report interface (`FacilityPHC`, `LGA`, `Month`, `Issue Type` filters + Diagnosis-to-Drug Prescription Audit alerts + scorecards & charts).
 
 - [ ] **P5 — Live Backend Integration, Project Setup Wizard & Multi-Clerk `.SAV` Merger UI** (`feat/p5-live-integration-polish`)
   - [ ] Connect frontend to DuroT's `D1–D5` endpoints.
   - [ ] Build the 2-Minute New Project Wizard (`.sav` template upload vs. blank PDF upload).
-  - [ ] Build the Multi-Clerk SPSS Harmonizer & Master Merger UI (bulk dropzone for 30+ `.sav` files, pre-merge variable/codebook reconciliation card, and 1-click unified `MASTER.sav` download).
+  - [ ] Build the Multi-Clerk SPSS Harmonizer & Master Merger UI (bulk dropzone for 30+ `.sav` files, pre-merge variable/codebook reconciliation card, Per-Clerk Quality Scorecard, and 1-click unified `MASTER.sav` download).
   - [ ] Connect 1-click `.sav`, `.sps`, PDF report, and Excel exports (including `[✓] Anonymize PII for Research`).

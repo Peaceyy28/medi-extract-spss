@@ -43,6 +43,7 @@ const appState = {
   queueItems: [],
   pendingDuplicate: null,
   selectedDocIds: new Set(),
+  expandedDocIds: new Set(),
   activeIssueId: null,
   activeDirectDocId: null,
   intakeFilters: {
@@ -387,13 +388,14 @@ async function commitUploadedDocument(doc) {
   doc.batchId = batch.id;
   doc.facility = batch.facility;
   doc.docRef = generateDocumentReference(appState.documents.length);
-  doc.uploadStatus = "UPLOADED";
+  doc.uploadStatus = "LOCAL_SESSION";
   doc.processingStatus = "QUEUED";
+  doc.justArrived = true;
   doc.pages = buildPageRecords(doc.id, doc.pageCount);
   doc.history = [
     {
       timestamp: new Date().toLocaleTimeString(),
-      event: `Uploaded to ${batch.reference} (${doc.pageCount || 1} page(s), ${doc.detectedFormat})`
+      event: `Received in local session for ${batch.reference} (${doc.pageCount || 1} page(s), ${doc.detectedFormat})`
     }
   ];
 
@@ -402,19 +404,21 @@ async function commitUploadedDocument(doc) {
 
   const res = await uploadFilesToBackend(appState.activeProjectId, [doc.file]);
   if (!res.ok) {
+    doc.uploadStatus = "LOCAL_SESSION";
     doc.history.unshift({
       timestamp: new Date().toLocaleTimeString(),
-      event: "Stored in browser session (Backend processing service unavailable)"
+      event: "Held in local browser session (Backend upload endpoint not connected)"
     });
     showToast(res.message);
   } else if (res.data?.queueItems) {
+    doc.uploadStatus = "SERVER_UPLOADED";
     doc.processingStatus = "COMPLETED";
     appState.queueItems.push(...res.data.queueItems);
     doc.history.unshift({
       timestamp: new Date().toLocaleTimeString(),
-      event: "Processed by backend extraction service"
+      event: "Uploaded and processed by backend extraction service"
     });
-    showToast(`Processed ${doc.name}`);
+    showToast(`Uploaded and processed ${doc.name}`);
   }
   renderAll();
 }
@@ -557,6 +561,11 @@ function renderAll() {
       document.getElementById("btn-bulk-delete").hidden = appState.selectedDocIds.size === 0;
     },
     onOpenDetail: (doc) => openDocumentDetailModal(doc),
+    onToggleExpand: (docId) => {
+      if (appState.expandedDocIds.has(docId)) appState.expandedDocIds.delete(docId);
+      else appState.expandedDocIds.add(docId);
+      renderAll();
+    },
     onInspectDoc: (doc) => openDocumentDirectly(doc),
     onRetryDoc: async (doc) => {
       if (!doc.file) return;

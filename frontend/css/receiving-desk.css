@@ -1,0 +1,261 @@
+/* ==========================================================================
+   MediExtract — Screen 02: The Receiving Desk (Paper Intake)
+   Cohesive with Screen 01 Project Index (#FFFFFF, #477FF5, #183B35, #C5E86C, #FF785E)
+   ========================================================================== */
+
+.rd-intro-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 24px;
+  align-items: stretch;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--rule-hairline);
+}
+
+.rd-heading {
+  font-family: var(--font-display);
+  font-size: clamp(34px, 4vw, 48px);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  font-weight: 400;
+  margin: 8px 0 10px;
+  color: var(--ink-main);
+}
+
+.rd-heading em {
+  font-style: italic;
+  color: var(--accent-blue);
+}
+
+.rd-sub {
+  font-size: 16px;
+  color: var(--ink-secondary);
+  margin: 0 0 20px;
+  max-width: 520px;
+}
+
+/* Deep Forest Batch Context Anchor Card */
+.rd-batch-card {
+  background: var(--bg-forest);
+  color: #FFFFFF;
+  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.rd-oversized-ref {
+  font-family: var(--font-mono);
+  font-size: clamp(20px, 2.4vw, 28px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--accent-lime);
+}
+
+.rd-batch-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 12.5px;
+}
+
+.rd-batch-meta-grid .mono-tag {
+  color: var(--ink-on-forest-muted);
+  display: block;
+}
+
+/* Horizontal Processing Track (Distinct Document vs Page Flow) */
+.rd-flow-panel {
+  background: #FFFFFF;
+  border: 1px solid var(--rule-hairline);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+.rd-flow-track {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+  position: relative;
+}
+
+.rd-flow-node {
+  background: var(--bg-subtle);
+  border: 1px solid var(--rule-hairline);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rd-flow-node.highlight-blue {
+  background: var(--bg-light-blue);
+  border-color: #BDD2FC;
+}
+
+.rd-flow-node.highlight-forest {
+  background: var(--bg-forest);
+  color: #FFFFFF;
+  border-color: var(--bg-forest);
+}
+
+.rd-flow-node.highlight-forest .metric-label {
+  color: var(--ink-on-forest-muted);
+}
+
+.rd-flow-num {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.rd-lifecycle-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule-hairline);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.rd-lc-step {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--rule-hairline);
+  background: #FFFFFF;
+}
+
+.rd-lc-step.current {
+  background: var(--accent-blue);
+  color: #FFFFFF;
+  border-color: var(--accent-blue);
+  font-weight: 600;
+}
+
+/* Expressive Document Receiving Dropzone */
+.rd-upload-shell {
+  background: #FFFFFF;
+  border: 1.5px dashed var(--accent-blue);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+  margin-bottom: 22px;
+  transition: all 0.18s ease;
+  position: relative;
+}
+
+.rd-upload-shell.drag-over {
+  background: var(--bg-light-blue);
+  border-color: var(--bg-forest);
+}
+
+.rd-upload-shell.compact {
+  padding: 14px 20px;
+}
+
+.rd-upload-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+/* Intake Ledger Thumbnail & Expandable Details */
+.rd-thumb-wrap {
+  width: 40px;
+  height: 50px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.rd-thumb-wrap:hover {
+  transform: scale(1.08);
+  box-shadow: var(--shadow-sm);
+}
+
+.rd-thumb-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rd-doc-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+@keyframes docArrive {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+    background-color: var(--bg-light-blue);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    background-color: transparent;
+  }
+}
+
+.doc-arrived {
+  animation: docArrive 0.45s ease-out;
+}
+
+.rd-expand-row td {
+  background: var(--bg-subtle);
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.rd-boundary-note {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--rule-hairline);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  color: var(--ink-secondary);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1024px) {
+  .rd-intro-grid {
+    grid-template-columns: 1fr;
+  }
+  .rd-flow-track {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .rd-flow-track {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

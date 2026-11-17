@@ -1,13 +1,23 @@
 /**
- * Screen 02: Paper Intake (The Receiving Desk)
+ * Screen 02: The Receiving Desk (Paper Intake)
  * Implements Project -> Batch -> Documents -> Pages hierarchy,
  * magic-byte validation, SHA-256 content fingerprinting, duplicate resolution,
- * batch creation, and the paginated Intake Ledger.
+ * batch lifecycle tracking, lazy thumbnails, expandable details, and the Intake Ledger.
  */
 
 import { formatBytes } from "./upload.js";
 
 export const INTAKE_PAGE_SIZE = 15;
+
+const BATCH_LIFECYCLE_STEPS = [
+  "DRAFT",
+  "RECEIVING",
+  "QUEUED",
+  "PROCESSING",
+  "REVIEW_REQUIRED",
+  "PROCESSING_COMPLETE",
+  "CLOSED"
+];
 
 export function generateBatchReference(existingBatches) {
   const year = new Date().getFullYear();
@@ -27,7 +37,6 @@ export async function validateFileMagicBytes(file) {
     const headerBuf = await file.slice(0, 8).arrayBuffer();
     const bytes = new Uint8Array(headerBuf);
 
-    // PDF: %PDF- (0x25 0x50 0x44 0x46 0x2D)
     const isPdfHeader =
       bytes[0] === 0x25 &&
       bytes[1] === 0x50 &&
@@ -35,10 +44,7 @@ export async function validateFileMagicBytes(file) {
       bytes[3] === 0x46 &&
       bytes[4] === 0x2d;
 
-    // JPEG: FF D8 FF
     const isJpegHeader = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-
-    // PNG: 89 50 4E 47 0D 0A 1A 0A
     const isPngHeader =
       bytes[0] === 0x89 &&
       bytes[1] === 0x50 &&
@@ -61,9 +67,6 @@ export async function validateFileMagicBytes(file) {
   }
 }
 
-/**
- * Compute real SHA-256 content fingerprint in browser using Web Crypto API.
- */
 export async function computeSha256Fingerprint(file) {
   if (!window.crypto?.subtle) return null;
   try {
@@ -96,29 +99,46 @@ export function renderIntakeOverview(state) {
   const project = state.projects.find((p) => p.id === state.activeProjectId) || null;
   const batch = state.batches.find((b) => b.id === state.activeBatchId) || null;
 
-  // Breadcrumb
+  // Breadcrumb: Projects / [Project name] / Paper Intake
   document.getElementById("crumb-project").textContent = project ? project.name : "No Project";
-  document.getElementById("crumb-batch").textContent = batch ? `${batch.name} (${batch.reference})` : "No Batch Selected";
+  document.getElementById("crumb-batch").textContent = batch
+    ? `Paper Intake · ${batch.reference}`
+    : "Paper Intake";
 
-  // Batch Info Strip
-  const infoStrip = document.getElementById("intake-batch-strip");
+  // Deep Forest Batch Context Card
+  const emptyCard = document.getElementById("rd-batch-empty");
+  const activeCard = document.getElementById("rd-batch-active");
+
   if (!batch) {
-    infoStrip.hidden = true;
+    emptyCard.hidden = false;
+    activeCard.hidden = true;
   } else {
-    infoStrip.hidden = false;
-    document.getElementById("bi-name").textContent = batch.name;
+    emptyCard.hidden = true;
+    activeCard.hidden = false;
     document.getElementById("bi-ref").textContent = batch.reference;
+    document.getElementById("bi-name").textContent = batch.name;
     document.getElementById("bi-facility").textContent = batch.facility || "—";
     document.getElementById("bi-period").textContent = batch.reportingPeriod || "Unspecified";
     document.getElementById("bi-created").textContent = new Date(batch.createdAt).toLocaleDateString();
     document.getElementById("bi-status").innerHTML = formatBatchStatusBadge(batch.lifecycleStatus);
   }
 
-  // Distinct Batch Measurements (Document count != Page count; Processing != Verification)
+  // Lifecycle Stepper Bar
+  const lcBar = document.getElementById("rd-lifecycle-bar");
+  const currentStep = batch?.lifecycleStatus || "DRAFT";
+  lcBar.innerHTML =
+    `<span class="mono-tag" style="margin-right:4px;">BATCH LIFECYCLE:</span>` +
+    BATCH_LIFECYCLE_STEPS.map((step) => {
+      const label = step.replace("_", " ");
+      const cls = step === currentStep ? "rd-lc-step current" : "rd-lc-step";
+      return `<span class="${cls}">${label}</span>`;
+    }).join("<span>→</span>");
+
+  // Distinct Batch Measurements (Document counts != Page counts; Processing != Verification)
   const batchDocs = batch ? state.documents.filter((d) => d.batchId === batch.id) : [];
   const docCount = batchDocs.length;
   const totalPages = batchDocs.reduce((sum, d) => sum + (d.pageCount || 0), 0);
-  const uploadedFiles = batchDocs.filter((d) => d.uploadStatus === "UPLOADED").length;
+  const uploadedFiles = batchDocs.filter((d) => d.uploadStatus === "SERVER_UPLOADED").length;
   const queuedFiles = batchDocs.filter((d) => d.processingStatus === "QUEUED").length;
 
   let processingPages = 0;
@@ -149,11 +169,7 @@ export function renderIntakeOverview(state) {
 
   // Compact dropzone once documents exist in the active batch
   const dropzone = document.getElementById("intake-dropzone");
-  if (batchDocs.length > 0) {
-    dropzone.classList.add("compact");
-  } else {
-    dropzone.classList.remove("compact");
-  }
+  dropzone.classList.toggle("compact", batchDocs.length > 0);
 }
 
 export function renderIntakeLedger(state, callbacks) {
@@ -169,7 +185,7 @@ export function renderIntakeLedger(state, callbacks) {
     emptyEl.hidden = false;
     emptyEl.innerHTML = `
       <h3>No project selected</h3>
-      <p>Select or create a project workspace before receiving encounter form batches.</p>
+      <p>Return to the Project Index to select or create a workspace before receiving encounter form batches.</p>
     `;
     return;
   }
@@ -179,8 +195,8 @@ export function renderIntakeLedger(state, callbacks) {
     emptyEl.hidden = false;
     emptyEl.innerHTML = `
       <h3>No batch selected</h3>
-      <p>Create a new batch or select an existing batch in <strong>${escapeHtml(project.name)}</strong> to begin uploading scanned forms.</p>
-      <button type="button" class="btn btn-primary" id="btn-empty-create-batch">+ Create New Batch</button>
+      <p>Create a new batch in <strong>${escapeHtml(project.name)}</strong> to begin receiving and tracking scanned encounter forms.</p>
+      <button type="button" class="btn btn-electric" id="btn-empty-create-batch">+ Create New Batch</button>
     `;
     document.getElementById("btn-empty-create-batch")?.addEventListener("click", callbacks.onOpenBatchModal);
     return;
@@ -191,13 +207,12 @@ export function renderIntakeLedger(state, callbacks) {
     tableWrap.hidden = true;
     emptyEl.hidden = false;
     emptyEl.innerHTML = `
-      <h3>This batch is ready for its first document</h3>
-      <p>Batch <strong>${escapeHtml(batch.name)}</strong> (${escapeHtml(batch.reference)}) currently has 0 documents. Drag and drop JPG, PNG, or multi-page PDF scans above.</p>
+      <h3>Ready to receive documents</h3>
+      <p>Batch <strong>${escapeHtml(batch.name)}</strong> (${escapeHtml(batch.reference)}) has 0 documents. Drag and drop JPG, PNG, or PDF scans above.</p>
     `;
     return;
   }
 
-  // Filter & Sort
   const q = (state.intakeFilters.search || "").trim().toLowerCase();
   const statusF = state.intakeFilters.status || "ALL";
   const facilityF = state.intakeFilters.facility || "ALL";
@@ -225,7 +240,7 @@ export function renderIntakeLedger(state, callbacks) {
     emptyEl.hidden = false;
     emptyEl.innerHTML = `
       <h3>No documents match the current filters</h3>
-      <p>Try clearing your search text or switching the status filter back to All.</p>
+      <p>Clear your search query or switch the status filter back to All Statuses.</p>
     `;
     return;
   }
@@ -243,13 +258,25 @@ export function renderIntakeLedger(state, callbacks) {
   tbody.innerHTML = "";
   for (const doc of slice) {
     const tr = document.createElement("tr");
+    if (doc.justArrived) {
+      tr.className = "doc-arrived";
+      doc.justArrived = false;
+    }
+
     const isChecked = state.selectedDocIds.has(doc.id);
+    const isExpanded = state.expandedDocIds.has(doc.id);
+    const thumbHtml = buildLazyThumbnailHtml(doc);
 
     tr.innerHTML = `
       <td><input type="checkbox" class="doc-row-check" ${isChecked ? "checked" : ""} aria-label="Select ${escapeHtml(doc.name)}" /></td>
       <td>
-        <div style="font-weight:600;">${escapeHtml(doc.name)}</div>
-        <div class="mono-tag">${escapeHtml(doc.docRef)} · ${escapeHtml(doc.detectedFormat || (doc.isPdf ? "PDF" : "IMG"))}</div>
+        <div class="rd-doc-cell">
+          <div class="rd-thumb-wrap" title="Click View to inspect full document">${thumbHtml}</div>
+          <div>
+            <div style="font-weight:600;">${escapeHtml(doc.name)}</div>
+            <div class="mono-tag">${escapeHtml(doc.docRef)} · ${escapeHtml(doc.detectedFormat || (doc.isPdf ? "PDF" : "IMG"))}</div>
+          </div>
+        </div>
       </td>
       <td>${escapeHtml(doc.facility || batch.facility || "—")}</td>
       <td class="mono-tag">${doc.pageCount != null ? doc.pageCount : "Unknown"}</td>
@@ -257,31 +284,68 @@ export function renderIntakeLedger(state, callbacks) {
       <td class="mono-tag">${new Date(doc.uploadedAt).toLocaleString()}</td>
       <td>
         ${formatDocStatusBadge(doc)}
-        ${doc.duplicateOfRef ? `<div class="mono-tag" style="color:var(--signal-amber-ink); margin-top:2px;">Explicit duplicate of ${escapeHtml(doc.duplicateOfRef)}</div>` : ""}
+        ${doc.duplicateOfRef ? `<div class="mono-tag" style="color:var(--signal-amber-ink); margin-top:2px;">Explicit copy of ${escapeHtml(doc.duplicateOfRef)}</div>` : ""}
       </td>
       <td style="text-align:right; white-space:nowrap;">
-        <button type="button" class="btn btn-sm btn-detail">Details</button>
+        <button type="button" class="btn btn-sm btn-expand">${isExpanded ? "Hide History" : "History"}</button>
         <button type="button" class="btn btn-sm btn-inspect">View</button>
-        ${doc.uploadStatus === "UPLOAD_FAILED" || doc.processingStatus === "FAILED" ? `<button type="button" class="btn btn-sm btn-retry">Retry</button>` : ""}
-        <button type="button" class="btn btn-sm btn-oxide btn-del">Delete</button>
+        ${doc.uploadStatus === "UPLOAD_FAILED" || doc.uploadStatus === "LOCAL_SESSION" || doc.processingStatus === "FAILED" ? `<button type="button" class="btn btn-sm btn-retry">Retry</button>` : ""}
+        <button type="button" class="btn btn-sm btn-oxide btn-del">Remove</button>
       </td>
     `;
 
     tr.querySelector(".doc-row-check").addEventListener("change", (e) => {
       callbacks.onToggleSelect(doc.id, e.target.checked);
     });
-    tr.querySelector(".btn-detail").addEventListener("click", () => callbacks.onOpenDetail(doc));
+    tr.querySelector(".btn-expand").addEventListener("click", () => callbacks.onToggleExpand(doc.id));
     tr.querySelector(".btn-inspect").addEventListener("click", () => callbacks.onInspectDoc(doc));
     tr.querySelector(".btn-retry")?.addEventListener("click", () => callbacks.onRetryDoc(doc));
     tr.querySelector(".btn-del").addEventListener("click", () => callbacks.onDeleteDoc(doc));
 
     tbody.appendChild(tr);
+
+    // Inline Expandable Document Details & Processing History
+    if (isExpanded) {
+      const expTr = document.createElement("tr");
+      expTr.className = "rd-expand-row";
+      const pageSummary = (doc.pages || [])
+        .slice(0, 6)
+        .map((pg) => `<span class="status-badge">p.${pg.pageNumber}: ${escapeHtml(pg.processingStatus)}</span>`)
+        .join(" ");
+      const histHtml = (doc.history || [])
+        .map((h) => `<div><span class="mono-tag">${escapeHtml(h.timestamp)}</span> — ${escapeHtml(h.event)}</div>`)
+        .join("");
+
+      expTr.innerHTML = `
+        <td colspan="8">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+            <div>
+              <div class="mono-tag" style="margin-bottom:6px;">PAGE RECORDS (${(doc.pages || []).length} TOTAL) · SHA-256: ${doc.sha256 ? doc.sha256.slice(0, 14) + "…" : "N/A"}</div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">${pageSummary}</div>
+            </div>
+            <div>
+              <div class="mono-tag" style="margin-bottom:6px;">DOCUMENT PROCESSING HISTORY</div>
+              <div style="font-size:12.5px;">${histHtml || "No events recorded."}</div>
+            </div>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(expTr);
+    }
   }
 
   const end = Math.min(start + INTAKE_PAGE_SIZE, total);
   document.getElementById("intake-pagination-info").textContent = `Showing ${start + 1}–${end} of ${total} document(s)`;
   document.getElementById("btn-intake-prev").disabled = state.intakePagination.page <= 1;
   document.getElementById("btn-intake-next").disabled = state.intakePagination.page >= maxPage;
+}
+
+function buildLazyThumbnailHtml(doc) {
+  const src = doc.objectUrl || doc.syntheticSvgUrl;
+  if (!doc.isPdf && src) {
+    return `<img src="${src}" alt="Thumbnail for ${escapeHtml(doc.name)}" loading="lazy" />`;
+  }
+  return `<span class="mono-tag" style="font-weight:600; color:var(--accent-blue);">${doc.isPdf ? "PDF" : "DOC"}</span>`;
 }
 
 export function openDocumentDetailModal(doc) {
@@ -313,31 +377,34 @@ export function openDocumentDetailModal(doc) {
 
 function formatBatchStatusBadge(status) {
   if (status === "PROCESSING_COMPLETE" || status === "CLOSED") {
-    return `<span class="status-badge verified">✓ ${escapeHtml(status.replace("_", " "))}</span>`;
+    return `<span class="status-badge verified" style="background:var(--accent-lime); color:#183B35; border-color:#183B35;">✓ ${escapeHtml(status.replace("_", " "))}</span>`;
   }
   if (status === "REVIEW_REQUIRED") {
     return `<span class="status-badge amber">⚑ Review Required</span>`;
   }
-  return `<span class="status-badge">● ${escapeHtml(status.replace("_", " "))}</span>`;
+  return `<span class="status-badge" style="background:rgba(255,255,255,0.14); color:#FFFFFF; border-color:rgba(255,255,255,0.28);">● ${escapeHtml(status.replace("_", " "))}</span>`;
 }
 
 function formatDocStatusBadge(doc) {
   if (doc.uploadStatus === "UPLOAD_FAILED") {
     return `<span class="status-badge failed">✕ Upload Failed</span>`;
   }
-  if (doc.uploadStatus === "VALIDATING" || doc.uploadStatus === "UPLOADING") {
-    return `<span class="status-badge amber">◷ ${escapeHtml(doc.uploadStatus)}</span>`;
+  if (doc.uploadStatus === "LOCAL_SESSION") {
+    return `<span class="status-badge amber">◷ Local Session (Pending Server)</span>`;
   }
   if (doc.processingStatus === "COMPLETED") {
-    return `<span class="status-badge verified">✓ Processed</span>`;
+    return `<span class="status-badge verified">✓ Completed</span>`;
   }
   if (doc.processingStatus === "FAILED") {
-    return `<span class="status-badge failed">✕ Processing Failed</span>`;
+    return `<span class="status-badge failed">✕ Failed</span>`;
   }
-  if (doc.processingStatus === "NEEDS_ATTENTION") {
-    return `<span class="status-badge amber">⚑ Needs Attention</span>`;
+  if (doc.processingStatus === "NEEDS_ATTENTION" || doc.processingStatus === "REVIEW_REQUIRED") {
+    return `<span class="status-badge amber">⚑ Review Required</span>`;
   }
-  return `<span class="status-badge amber">◷ Uploaded · ${escapeHtml(doc.processingStatus || "QUEUED")}</span>`;
+  if (doc.processingStatus === "PROCESSING") {
+    return `<span class="status-badge">● Processing</span>`;
+  }
+  return `<span class="status-badge">◷ Received · ${escapeHtml(doc.processingStatus || "QUEUED")}</span>`;
 }
 
 function escapeHtml(str) {

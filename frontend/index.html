@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/tokens.css" />
   <link rel="stylesheet" href="css/workstation.css" />
   <link rel="stylesheet" href="css/project-index.css" />
+  <link rel="stylesheet" href="css/receiving-desk.css" />
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
 </head>
@@ -223,75 +224,114 @@
     </section>
 
     <!-- ====================================================================
-         SCREEN 02: PAPER INTAKE (THE RECEIVING DESK)
+         SCREEN 02: THE RECEIVING DESK — PAPER INTAKE
+         Hierarchy: Project -> Batch -> Documents -> Pages
          ==================================================================== -->
     <section id="view-intake" aria-label="Paper Intake — The Receiving Desk" hidden>
-      <div class="receiving-head">
+
+      <!-- Editorial Introduction + Deep Forest Batch Anchor Card -->
+      <div class="rd-intro-grid">
         <div>
-          <h1 class="receiving-title">Receive new records.</h1>
-          <p class="receiving-sub">
-            Bring scanned encounter forms into your project. MediExtract will organise, process and track every document.
+          <span class="mono-tag" style="color:var(--accent-blue);">SCREEN 02 · THE RECEIVING DESK</span>
+          <h1 class="rd-heading">Bring the <em>records</em> in.</h1>
+          <p class="rd-sub">
+            Receive, organise and prepare your clinical documents for extraction.
           </p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-electric" id="btn-intake-create-batch">+ Create Batch</button>
+            <button type="button" class="btn" id="btn-go-review-from-intake">Go to Review Queue →</button>
+          </div>
         </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="button" class="btn" id="btn-intake-create-batch">+ Create Batch</button>
-          <button type="button" class="btn btn-electric" id="btn-go-review-from-intake">
-            Go to Review Queue →
-          </button>
+
+        <!-- Deep Forest Batch Context Card -->
+        <div class="rd-batch-card">
+          <div id="rd-batch-empty">
+            <span class="mono-tag" style="color:var(--ink-on-forest-muted);">ACTIVE BATCH CONTEXT</span>
+            <div class="rd-oversized-ref" style="margin-top:6px;">NO BATCH SELECTED</div>
+            <p style="margin:8px 0 0; font-size:13px; color:var(--ink-on-forest-muted);">
+              Create a new batch or select an existing batch in the bar above to begin receiving documents.
+            </p>
+          </div>
+
+          <div id="rd-batch-active" hidden>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+              <div>
+                <span class="mono-tag" style="color:var(--ink-on-forest-muted);">BATCH REFERENCE</span>
+                <div class="rd-oversized-ref" id="bi-ref">—</div>
+              </div>
+              <div id="bi-status">—</div>
+            </div>
+
+            <div style="font-size:16px; font-weight:600; margin-top:6px;" id="bi-name">—</div>
+
+            <div class="rd-batch-meta-grid">
+              <div><span class="mono-tag">FACILITY</span><strong id="bi-facility">—</strong></div>
+              <div><span class="mono-tag">REPORTING PERIOD</span><strong id="bi-period">—</strong></div>
+              <div><span class="mono-tag">CREATED</span><strong id="bi-created">—</strong></div>
+              <div><span class="mono-tag">PIPELINE</span><strong>Scanned OCR (Separate from .SAV)</strong></div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="panel batch-strip">
-        <div class="batch-info-strip" id="intake-batch-strip" hidden>
-          <div class="batch-info-cell">
-            <div class="metric-label">Batch Name</div>
-            <div style="font-weight:600; margin-top:2px;" id="bi-name">—</div>
+      <!-- Horizontal Processing Track & Distinct Measurements -->
+      <div class="rd-flow-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <span class="mono-tag">BATCH PROGRESS · DOCUMENT COUNTS &amp; PAGE COUNTS KEPT DISTINCT</span>
+          <span class="mono-tag">Processing completion ≠ Human verification</span>
+        </div>
+
+        <div class="rd-flow-track">
+          <div class="rd-flow-node highlight-forest">
+            <div class="metric-label">Documents</div>
+            <div class="rd-flow-num" id="im-docs">0</div>
           </div>
-          <div class="batch-info-cell">
-            <div class="metric-label">Batch Reference</div>
-            <div class="mono-tag" style="margin-top:3px;" id="bi-ref">—</div>
+          <div class="rd-flow-node highlight-blue">
+            <div class="metric-label">Total Pages</div>
+            <div class="rd-flow-num" id="im-pages">0</div>
           </div>
-          <div class="batch-info-cell">
-            <div class="metric-label">Facility</div>
-            <div style="font-weight:500; margin-top:2px;" id="bi-facility">—</div>
+          <div class="rd-flow-node">
+            <div class="metric-label">Uploaded</div>
+            <div class="rd-flow-num" id="im-uploaded">0</div>
           </div>
-          <div class="batch-info-cell">
-            <div class="metric-label">Reporting Period</div>
-            <div style="margin-top:2px;" id="bi-period">—</div>
+          <div class="rd-flow-node">
+            <div class="metric-label">Queued</div>
+            <div class="rd-flow-num" id="im-queued">0</div>
           </div>
-          <div class="batch-info-cell">
-            <div class="metric-label">Created</div>
-            <div class="mono-tag" style="margin-top:3px;" id="bi-created">—</div>
+          <div class="rd-flow-node">
+            <div class="metric-label">Processing</div>
+            <div class="rd-flow-num" id="im-proc-pages">0</div>
           </div>
-          <div class="batch-info-cell">
-            <div class="metric-label">Batch Lifecycle</div>
-            <div style="margin-top:3px;" id="bi-status">—</div>
+          <div class="rd-flow-node">
+            <div class="metric-label">Completed</div>
+            <div class="rd-flow-num" id="im-done-pages" style="color:var(--signal-verified);">0</div>
+          </div>
+          <div class="rd-flow-node">
+            <div class="metric-label">Awaiting Review</div>
+            <div class="rd-flow-num" id="im-review-pages" style="color:var(--signal-amber-ink);">0</div>
+          </div>
+          <div class="rd-flow-node">
+            <div class="metric-label">Failed</div>
+            <div class="rd-flow-num" id="im-failed-pages" style="color:var(--signal-oxide);">0</div>
           </div>
         </div>
 
-        <div class="batch-metrics" style="grid-template-columns: repeat(8, minmax(100px, 1fr));">
-          <div class="metric-cell"><div class="metric-label">Documents</div><div class="metric-value" id="im-docs">0</div></div>
-          <div class="metric-cell"><div class="metric-label">Total Pages</div><div class="metric-value" id="im-pages">0</div></div>
-          <div class="metric-cell"><div class="metric-label">Uploaded Files</div><div class="metric-value" id="im-uploaded">0</div></div>
-          <div class="metric-cell"><div class="metric-label">Queued Files</div><div class="metric-value" id="im-queued">0</div></div>
-          <div class="metric-cell"><div class="metric-label">Processing Pages</div><div class="metric-value" id="im-proc-pages">0</div></div>
-          <div class="metric-cell"><div class="metric-label">Completed Pages</div><div class="metric-value" id="im-done-pages" style="color:var(--signal-verified);">0</div></div>
-          <div class="metric-cell"><div class="metric-label">Review Pages</div><div class="metric-value" id="im-review-pages" style="color:var(--signal-amber-ink);">0</div></div>
-          <div class="metric-cell"><div class="metric-label">Failed Pages</div><div class="metric-value" id="im-failed-pages" style="color:var(--signal-oxide);">0</div></div>
-        </div>
+        <div class="rd-lifecycle-bar" id="rd-lifecycle-bar"></div>
       </div>
 
-      <div class="panel upload-zone">
-        <div class="dropzone" id="intake-dropzone" tabindex="0" role="region" aria-label="Document upload area">
+      <!-- Expressive Document Receiving Dropzone (Compacts once documents exist) -->
+      <div class="rd-upload-shell" id="intake-dropzone" tabindex="0" role="region" aria-label="Document upload area">
+        <div class="rd-upload-inner">
           <div>
-            <p style="margin:0 0 4px; font-weight:600; font-size:15px;">
-              Drop scanned encounter forms here, or browse files
+            <span class="mono-tag" style="color:var(--accent-blue);">DOCUMENT RECEIVING AREA · JPG, PNG, MULTI-PAGE PDF</span>
+            <p style="margin:4px 0 2px; font-weight:600; font-size:15px;">
+              Drop scanned clinical encounter forms here, or browse files
             </p>
             <p style="margin:0; color:var(--ink-secondary); font-size:12.5px;">
-              Supported formats: <strong>JPG, PNG, multi-page PDF</strong> (verified by file signature) · Multiple-file upload enabled
+              Files are verified by binary header signature and fingerprinted (SHA-256) to prevent silent duplicates.
             </p>
           </div>
-          <div style="margin-top:10px;">
+          <div>
             <label class="btn btn-electric" for="intake-file-input">Browse Files</label>
             <input type="file" id="intake-file-input" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" multiple class="sr-only" />
           </div>
@@ -299,7 +339,7 @@
 
         <div class="duplicate-alert" id="duplicate-alert" hidden>
           <div>
-            <strong>Possible Duplicate Detected (Identical File Content):</strong>
+            <strong>Possible Duplicate Detected (Identical SHA-256 Content):</strong>
             <span id="duplicate-msg"></span>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -308,15 +348,21 @@
             <button type="button" class="btn btn-sm btn-amber" id="btn-dup-keep-both">Upload Another Copy</button>
           </div>
         </div>
+
+        <div class="rd-boundary-note">
+          <span><strong>Local Storage &amp; Scanner Boundary:</strong> Browsers cannot directly watch local Windows folders; automated hot-folder intake requires DuroT's local helper service (`D3`).</span>
+          <span class="mono-tag" id="rd-storage-status">Session Storage: Ready</span>
+        </div>
       </div>
 
+      <!-- Intake Ledger (Archive Register) -->
       <div class="panel">
         <div class="panel-header">
           <div>
             <h2 class="panel-title">Intake Ledger</h2>
-            <span class="mono-tag">Register of received documents, page counts, and processing history</span>
+            <span class="mono-tag">Register of received documents, page records, and processing history</span>
           </div>
-          <button type="button" class="btn btn-sm btn-oxide" id="btn-bulk-delete" hidden>Delete Selected</button>
+          <button type="button" class="btn btn-sm btn-oxide" id="btn-bulk-delete" hidden>Remove Selected</button>
         </div>
 
         <div class="queue-controls">
@@ -326,8 +372,8 @@
               <option value="ALL">All Statuses</option>
               <option value="QUEUED">Queued</option>
               <option value="PROCESSING">Processing</option>
-              <option value="COMPLETED">Processed</option>
-              <option value="NEEDS_ATTENTION">Needs Attention</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="NEEDS_ATTENTION">Review Required</option>
               <option value="FAILED">Failed</option>
             </select>
             <select id="intake-facility-filter" class="input-control">

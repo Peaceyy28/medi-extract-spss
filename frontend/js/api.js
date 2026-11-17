@@ -184,3 +184,27 @@ export async function runQualityValidationOnBackend(projectId, payload) {
     return { ok: false, reason: "NETWORK_ERROR", message: err.message };
   }
 }
+
+export async function exportDatasetOnBackend(projectId, payload) {
+  if (!apiState.connected) {
+    return {
+      ok: false,
+      reason: "BACKEND_UNAVAILABLE",
+      message: `Binary export (.${payload.format}) requires FastAPI pyreadstat/openpyxl backend (/api/v1/projects/${projectId}/export), which is offline.`
+    };
+  }
+
+  try {
+    const res = await fetch(`${apiState.baseUrl}/projects/${encodeURIComponent(projectId)}/export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      return { ok: false, reason: "HTTP_ERROR", message: `Server returned HTTP ${res.status}` };
+    }
+    return { ok: true, data: await res.json() };
+  } catch (err) {
+    return { ok: false, reason: "NETWORK_ERROR", message: err.message };
+  }
+}

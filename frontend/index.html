@@ -17,6 +17,8 @@
   <link rel="stylesheet" href="css/master-merger.css" />
   <link rel="stylesheet" href="css/evidence-room.css" />
   <link rel="stylesheet" href="css/quality-observatory.css" />
+  <link rel="stylesheet" href="css/analysis-studio.css" />
+  <link rel="stylesheet" href="css/export-hub.css" />
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
 </head>
@@ -46,6 +48,8 @@
       <button type="button" class="nav-tab" id="nav-split" data-view="split" disabled>Evidence Split</button>
       <button type="button" class="nav-tab" id="nav-merger" data-view="merger">Master Merger</button>
       <button type="button" class="nav-tab" id="nav-analytics" data-view="analytics">Quality Observatory</button>
+      <button type="button" class="nav-tab" id="nav-studio" data-view="studio">Analysis Studio</button>
+      <button type="button" class="nav-tab" id="nav-export" data-view="export">Export Hub</button>
       <button type="button" class="nav-tab" id="nav-settings" data-view="settings">Settings</button>
     </nav>
 
@@ -1218,6 +1222,343 @@
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <button type="button" class="btn btn-verified" id="qo-btn-approve-dataset" disabled>Approve Dataset for Analysis →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         SCREEN 06: THE ANALYSIS STUDIO (DUAL-VIEW WEB SPSS)
+         ==================================================================== -->
+    <section id="view-studio" aria-label="The Analysis Studio" hidden>
+      <div class="rd-intro-grid">
+        <div>
+          <span class="mono-tag" style="color:var(--accent-blue);">SCREEN 06 · THE ANALYSIS STUDIO</span>
+          <h1 class="rd-heading">Your data, in <em>full view</em>.</h1>
+          <p class="rd-sub">
+            Inspect variables, explore records and prepare your dataset for statistical analysis.
+          </p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+            <button type="button" class="btn btn-sm" id="st-btn-view-val">View Validation Results</button>
+            <button type="button" class="btn btn-sm btn-electric" id="st-btn-open-export">Open Export Workspace →</button>
+          </div>
+        </div>
+
+        <div class="rd-batch-card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+            <div>
+              <span class="mono-tag" style="color:var(--ink-on-forest-muted);" id="st-project-name">—</span>
+              <div style="font-size:18px; font-weight:600; margin-top:4px;" id="st-dataset-name">—</div>
+            </div>
+            <span class="qo-status-pill" id="st-val-status">NOT STARTED</span>
+          </div>
+          <div class="rd-batch-meta-grid">
+            <div><span class="mono-tag">RECORDS / VARIABLES</span><strong><span id="st-rec-count">0</span> rows · <span id="st-var-count">0</span> vars</strong></div>
+            <div><span class="mono-tag">LAST UPDATED</span><strong id="st-updated-at">—</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Studio Workspace Sub-Nav -->
+      <div class="mm-subnav" role="tablist">
+        <button type="button" class="mm-step-pill active" id="st-subbtn-data" data-st-tab="data">Data View</button>
+        <button type="button" class="mm-step-pill" id="st-subbtn-variables" data-st-tab="variables">Variable View</button>
+        <button type="button" class="mm-step-pill" id="st-subbtn-overview" data-st-tab="overview">Dataset Overview</button>
+        <button type="button" class="mm-step-pill" id="st-subbtn-tools" data-st-tab="tools">Preparation &amp; Auto-Recode</button>
+      </div>
+
+      <!-- PANE 1: DATA VIEW -->
+      <div id="st-pane-data">
+        <div class="st-split">
+          <div class="panel">
+            <div class="st-toolbar">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="search" id="st-search" class="input-control" placeholder="Search records…" />
+                <div class="st-toggle-pill" role="group" aria-label="Values or Labels display">
+                  <button type="button" id="st-mode-values" class="active">Values</button>
+                  <button type="button" id="st-mode-labels">Labels</button>
+                </div>
+              </div>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <span class="mono-tag" id="st-readonly-note">Read-only local inspection</span>
+                <button type="button" class="btn btn-sm btn-verified" id="st-save-btn" disabled>Save Changes</button>
+              </div>
+            </div>
+
+            <div id="st-data-empty" class="empty-state"></div>
+            <div id="st-data-grid-wrap" hidden>
+              <div class="st-grid-viewport">
+                <table class="st-spss-table">
+                  <thead id="st-data-thead"></thead>
+                  <tbody id="st-data-tbody"></tbody>
+                </table>
+              </div>
+              <div class="pagination-bar">
+                <span class="mono-tag" id="st-page-info">Window 0–0 of 0</span>
+                <div style="display:flex; gap:6px;">
+                  <button type="button" class="btn btn-sm" id="st-prev-page" disabled>← Prev</button>
+                  <button type="button" class="btn btn-sm" id="st-next-page" disabled>Next →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Record Inspection & Provenance -->
+          <div class="panel st-inspector">
+            <span class="mono-tag">CELL &amp; PROVENANCE INSPECTOR</span>
+            <div id="st-insp-empty" style="padding:24px 0; color:var(--ink-secondary); font-size:13px;">
+              Select any cell in the Data View grid to inspect its full value, codebook label, and source provenance.
+            </div>
+            <div id="st-insp-body" hidden>
+              <h3 id="st-insp-var" style="margin:6px 0 2px;">—</h3>
+              <p id="st-insp-varlabel" style="margin:0; font-size:13px; color:var(--ink-secondary);">—</p>
+              <div class="qo-meta-grid">
+                <div><span class="mono-tag">STORED VALUE</span><strong id="st-insp-val">—</strong></div>
+                <div><span class="mono-tag">VALUE LABEL</span><strong id="st-insp-vallabel">—</strong></div>
+                <div><span class="mono-tag">SOURCE FILE</span><strong id="st-insp-file">—</strong></div>
+                <div><span class="mono-tag">ORIGINAL ROW</span><strong id="st-insp-row">—</strong></div>
+                <div style="grid-column:1/-1;"><span class="mono-tag">SOURCE CLERK</span><strong id="st-insp-clerk">—</strong></div>
+              </div>
+              <div style="margin-top:12px;">
+                <button type="button" class="btn btn-sm" id="st-btn-trace-evidence" hidden>Trace to Evidence Split →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANE 2: VARIABLE VIEW -->
+      <div id="st-pane-variables" hidden>
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">SPSS Variable Metadata Definitions</h2>
+            <span class="mono-tag">Preserved names, labels, types, value domains &amp; measure levels</span>
+          </div>
+          <div class="queue-table-wrap">
+            <table class="queue-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Label</th>
+                  <th>Type</th>
+                  <th>Width</th>
+                  <th>Dec</th>
+                  <th>Value Labels</th>
+                  <th>Missing</th>
+                  <th>Measure</th>
+                  <th>Role</th>
+                </tr>
+              </thead>
+              <tbody id="st-var-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANE 3: DATASET OVERVIEW -->
+      <div id="st-pane-overview" hidden>
+        <div class="st-overview-grid">
+          <div class="metric-cell"><div class="metric-label">Total Records</div><div class="metric-value" id="st-ov-records">0</div></div>
+          <div class="metric-cell"><div class="metric-label">Total Variables</div><div class="metric-value" id="st-ov-vars">0</div></div>
+          <div class="metric-cell"><div class="metric-label">Variable Types</div><div style="font-weight:600; margin-top:6px;" id="st-ov-types">—</div></div>
+          <div class="metric-cell"><div class="metric-label">Missingness</div><div style="font-weight:600; margin-top:6px;" id="st-ov-missing">—</div></div>
+          <div class="metric-cell"><div class="metric-label">Measurement Levels</div><div style="font-weight:600; margin-top:6px;" id="st-ov-measures">—</div></div>
+          <div class="metric-cell"><div class="metric-label">Validation &amp; Approval</div><div style="font-weight:600; margin-top:6px;" id="st-ov-approval">—</div></div>
+        </div>
+      </div>
+
+      <!-- PANE 4: PREPARATION & AUTO-RECODE -->
+      <div id="st-pane-tools" hidden>
+        <div class="st-tools-grid">
+          <div class="panel" style="padding:18px 20px;">
+            <span class="mono-tag">DESCRIPTIVE FREQUENCIES</span>
+            <h2 class="panel-title" style="margin-top:2px;">Inspect Value Frequencies</h2>
+            <select id="st-freq-var" class="input-control" style="width:100%; margin:10px 0 14px;"></select>
+            <div id="st-freq-results"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <span class="mono-tag">PLANNED DERIVED VARIABLES</span>
+                <h2 class="panel-title">Auto-Recode Definitions</h2>
+              </div>
+              <span class="mono-tag">Original variables always preserved</span>
+            </div>
+            <div class="queue-table-wrap">
+              <table class="queue-table">
+                <thead>
+                  <tr>
+                    <th>Derived Var</th>
+                    <th>Sources</th>
+                    <th>Transformation</th>
+                    <th>Value Labels</th>
+                    <th>Engine Status</th>
+                  </tr>
+                </thead>
+                <tbody id="st-recode-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         SCREEN 07: THE INTELLIGENCE & EXPORT HUB
+         ==================================================================== -->
+    <section id="view-export" aria-label="The Intelligence & Export Hub" hidden>
+      <div class="rd-intro-grid">
+        <div>
+          <span class="mono-tag" style="color:var(--accent-blue);">SCREEN 07 · THE INTELLIGENCE &amp; EXPORT HUB</span>
+          <h1 class="rd-heading">Make the data <em>useful</em>.</h1>
+          <p class="rd-sub">
+            Explore patterns, generate reports and prepare your dataset for analysis beyond MediExtract.
+          </p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+            <button type="button" class="btn btn-sm" id="eh-btn-back-studio">← Return to Analysis Studio</button>
+            <button type="button" class="btn btn-sm" id="eh-btn-back-home">Return to Project Index</button>
+          </div>
+        </div>
+
+        <div class="rd-batch-card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+            <div>
+              <span class="mono-tag" style="color:var(--ink-on-forest-muted);" id="eh-project-name">—</span>
+              <div style="font-size:18px; font-weight:600; margin-top:4px;" id="eh-dataset-name">—</div>
+            </div>
+            <span class="qo-status-pill" id="eh-approval-status">Draft</span>
+          </div>
+          <div class="rd-batch-meta-grid">
+            <div><span class="mono-tag">DATASET SIZE</span><strong><span id="eh-rec-count">0</span> rows · <span id="eh-var-count">0</span> vars</strong></div>
+            <div><span class="mono-tag">VALIDATION</span><strong id="eh-val-status">NOT STARTED</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="eh-journey-strip">
+        <span class="eh-step-done">01 Paper Records</span> →
+        <span class="eh-step-done">02 Structured Data</span> →
+        <span class="eh-step-done">03 Verified Evidence</span> →
+        <span class="eh-step-done">04 Reconciled Dataset</span> →
+        <span class="eh-step-done">05 Quality Control</span> →
+        <span class="eh-step-done">06 Analysis Studio</span> →
+        <strong style="color:var(--accent-blue);">07 Research-Ready Outputs</strong>
+      </div>
+
+      <!-- Dataset Filtering & Subset Preview -->
+      <div class="panel" style="padding:18px 20px; margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div>
+            <span class="mono-tag">DATASET FILTERING &amp; SUBSET</span>
+            <h2 class="panel-title" style="margin-top:2px;" id="eh-subset-count">Original: 0 record(s) · Filtered Subset: 0 record(s)</h2>
+          </div>
+          <button type="button" class="btn btn-sm" id="eh-btn-reset-filters">Reset Filters</button>
+        </div>
+        <div class="eh-filter-bar">
+          <select id="eh-filter-sex" class="input-control" aria-label="Filter by Sex"></select>
+          <select id="eh-filter-diag" class="input-control" aria-label="Filter by Diagnosis"></select>
+          <select id="eh-filter-fac" class="input-control" aria-label="Filter by Facility"></select>
+          <div style="display:flex; gap:6px;">
+            <input type="number" id="eh-filter-agemin" class="input-control" placeholder="Min Age" style="width:50%;" />
+            <input type="number" id="eh-filter-agemax" class="input-control" placeholder="Max Age" style="width:50%;" />
+          </div>
+        </div>
+        <div class="eh-chart-grid" id="eh-charts-grid"></div>
+      </div>
+
+      <!-- Report Builder + Export Centre -->
+      <div class="eh-main-grid">
+        <!-- Left: Report Builder & Preview -->
+        <div class="panel" style="padding:18px 20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div>
+              <span class="mono-tag">REPORT BUILDER</span>
+              <h2 class="panel-title" style="margin-top:2px;">Institutional Report Preview</h2>
+            </div>
+            <button type="button" class="btn btn-sm btn-electric" id="eh-btn-gen-report">Generate Report Preview</button>
+          </div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; font-size:12.5px;">
+            <label><input type="checkbox" id="eh-sec-profile" checked /> Dataset profile</label>
+            <label><input type="checkbox" id="eh-sec-demo" checked /> Demographic</label>
+            <label><input type="checkbox" id="eh-sec-clin" checked /> Clinical</label>
+            <label><input type="checkbox" id="eh-sec-geo" checked /> Geographic</label>
+            <label><input type="checkbox" id="eh-sec-qual" checked /> Data quality</label>
+          </div>
+          <div class="eh-report-sheet" id="eh-report-preview"></div>
+        </div>
+
+        <!-- Right: Export Centre & Anonymisation -->
+        <div class="panel" style="padding:18px 20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+            <div>
+              <span class="mono-tag">EXPORT CENTRE</span>
+              <h2 class="panel-title" style="margin-top:2px;">Configure &amp; Export Deliverable</h2>
+            </div>
+            <span id="eh-readiness-badge" class="status-badge amber">◷ Draft Export</span>
+          </div>
+
+          <p class="mono-tag" id="eh-readiness-summary" style="margin:8px 0 12px;"></p>
+
+          <div style="display:grid; gap:10px;">
+            <div>
+              <label for="eh-export-format" class="mono-tag" style="display:block; margin-bottom:4px;">Export Format</label>
+              <select id="eh-export-format" class="input-control" style="width:100%;">
+                <option value="csv">.csv — Comma-Separated Data (Client &amp; Backend)</option>
+                <option value="sps">.sps — IBM SPSS Syntax File (Client &amp; Backend)</option>
+                <option value="sav">.sav — Native IBM SPSS Dataset (Requires pyreadstat)</option>
+                <option value="xlsx">.xlsx — Excel Workbook (Requires openpyxl)</option>
+                <option value="dta">.dta — Stata Dataset (Requires pyreadstat)</option>
+              </select>
+            </div>
+            <div>
+              <label for="eh-export-scope" class="mono-tag" style="display:block; margin-bottom:4px;">Dataset Scope</label>
+              <select id="eh-export-scope" class="input-control" style="width:100%;">
+                <option value="FULL">Full Dataset</option>
+                <option value="FILTERED">Filtered Subset Only</option>
+              </select>
+            </div>
+            <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:12.5px;">
+              <label><input type="checkbox" id="eh-opt-labels" checked /> Include value labels</label>
+              <label><input type="checkbox" id="eh-opt-anon-remove" /> Remove direct IDs</label>
+              <label><input type="checkbox" id="eh-opt-anon-pseudo" /> Pseudonymise IDs</label>
+            </div>
+            <div class="eh-anon-warning">
+              <strong>Privacy Notice:</strong> Removing direct identifiers alone does not guarantee anonymisation; combinations of fields may still permit re-identification. Anonymisation operates strictly on an export copy.
+            </div>
+            <div>
+              <span class="mono-tag">EXPORT COPY PREVIEW (ROW 1)</span>
+              <pre id="eh-anon-preview" style="margin:4px 0 0; padding:10px; background:var(--bg-soft); border:1px solid var(--rule-hairline); border-radius:var(--radius-sm); font-size:11px; overflow:auto; max-height:130px;"></pre>
+            </div>
+            <button type="button" class="btn btn-electric" id="eh-btn-export-now">Export Deliverable →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export History Register -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Export History Register</h2>
+          <span class="mono-tag">Only genuinely generated files appear with download links</span>
+        </div>
+        <div id="eh-history-empty" class="empty-state">
+          <h3>No exports generated yet</h3>
+          <p>Configure an export format above to generate a traceable deliverable or inspect backend requirements.</p>
+        </div>
+        <div id="eh-history-table-wrap" class="queue-table-wrap" hidden>
+          <table class="queue-table">
+            <thead>
+              <tr>
+                <th>File Name</th>
+                <th>Format</th>
+                <th>Scope</th>
+                <th>Timestamp</th>
+                <th>Anonymisation</th>
+                <th>Status</th>
+                <th style="text-align:right;">Download</th>
+              </tr>
+            </thead>
+            <tbody id="eh-history-tbody"></tbody>
+          </table>
         </div>
       </div>
     </section>

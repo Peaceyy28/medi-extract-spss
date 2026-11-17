@@ -1,0 +1,123 @@
+/* ==========================================================================
+   MediExtract — Screen 07: The Intelligence & Export Hub
+   Visual Identity: White (#FFFFFF), Electric Blue (#477FF5),
+   Deep Forest (#183B35), Signal Lime (#C5E86C), Coral (#FF785E), Ink (#20252D)
+   ========================================================================== */
+
+.eh-journey-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  border: 1px solid var(--rule-hairline);
+  margin-bottom: 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-secondary);
+}
+
+.eh-journey-strip .eh-step-done {
+  color: var(--bg-forest);
+  font-weight: 600;
+}
+
+.eh-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.eh-main-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 18px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.eh-chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.eh-chart-card {
+  border: 1px solid var(--rule-hairline);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  background: #FFFFFF;
+}
+
+.eh-bar-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 44px;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.eh-bar-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-main);
+}
+
+.eh-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+
+.eh-bar-fill {
+  height: 100%;
+  background: var(--accent-blue);
+  border-radius: 999px;
+}
+
+.eh-report-sheet {
+  border: 1.5px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  background: #FFFFFF;
+  padding: 22px 24px;
+  margin-top: 14px;
+}
+
+.eh-report-header {
+  border-bottom: 2px solid var(--bg-forest);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+
+.eh-anon-warning {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: #FEF7E6;
+  border: 1px solid #F2D08A;
+  color: #7D5106;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1080px) {
+  .eh-main-grid,
+  .eh-chart-grid {
+    grid-template-columns: 1fr;
+  }
+  .eh-filter-bar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .eh-filter-bar {
+    grid-template-columns: 1fr;
+  }
+}

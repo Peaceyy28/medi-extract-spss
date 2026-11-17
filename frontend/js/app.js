@@ -9,12 +9,21 @@ import {
   submitDecisionToBackend,
   inspectMergeFilesOnBackend,
   executeMasterMergeOnBackend,
-  runQualityValidationOnBackend
+  runQualityValidationOnBackend,
+  exportDatasetOnBackend
 } from "./api.js";
 import { validateUploadFile, inspectLocalFile } from "./upload.js";
 import { renderProjectIndex } from "./project-index.js";
 import { validateSavMagicBytes, renderMergerScreen } from "./merger.js";
 import { runQualityValidation, renderObservatoryScreen } from "./observatory.js";
+import { DEFAULT_STUDIO_VARIABLES, renderStudioScreen } from "./studio.js";
+import {
+  applyExportFilters,
+  buildAnonymisedCopy,
+  generateCsvContent,
+  generateSpsSyntax,
+  renderExportHubScreen
+} from "./export-hub.js";
 import {
   generateBatchReference,
   generateDocumentReference,
@@ -103,6 +112,29 @@ const appState = {
       search: ""
     },
     pagination: { page: 1 }
+  },
+  studio: {
+    activeTab: "data",
+    variables: DEFAULT_STUDIO_VARIABLES,
+    showLabels: false,
+    search: "",
+    sortCol: null,
+    sortDir: "asc",
+    page: 1,
+    selectedCell: null,
+    lastUpdated: null
+  },
+  exportHub: {
+    filters: { sex: "ALL", diagnosis: "ALL", facility: "ALL", ageMin: "", ageMax: "" },
+    sections: { profile: true, demographic: true, clinical: true, geographic: true, quality: true },
+    reportGenerated: false,
+    config: {
+      format: "csv",
+      scope: "FULL",
+      includeLabels: true,
+      anonymisation: { removeDirectIds: false, pseudonymiseIds: false, excludeNotes: false }
+    },
+    history: []
   }
 };
 
@@ -114,6 +146,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   bindIntakeLedgerControls();
   bindMergerControls();
   bindObservatoryControls();
+  bindStudioControls();
+  bindExportHubControls();
   bindQueueFilters();
   bindKeyboardShortcuts();
   bindSyntheticDevPreview();
@@ -149,6 +183,8 @@ function bindNavigation() {
   document.getElementById("nav-queue").addEventListener("click", () => switchView("queue"));
   document.getElementById("nav-merger").addEventListener("click", () => switchView("merger"));
   document.getElementById("nav-analytics").addEventListener("click", () => switchView("analytics"));
+  document.getElementById("nav-studio").addEventListener("click", () => switchView("studio"));
+  document.getElementById("nav-export").addEventListener("click", () => switchView("export"));
   document.getElementById("nav-settings").addEventListener("click", () => switchView("settings"));
   document.getElementById("nav-split").addEventListener("click", () => {
     if (appState.activeIssueId || appState.activeDirectDocId) {
@@ -187,7 +223,7 @@ function switchView(viewName) {
     return;
   }
   appState.view = viewName;
-  ["home", "intake", "queue", "split", "merger", "analytics", "settings"].forEach((v) => {
+  ["home", "intake", "queue", "split", "merger", "analytics", "studio", "export", "settings"].forEach((v) => {
     const el = document.getElementById("view-" + v);
     if (el) el.hidden = v !== viewName;
     const nav = document.getElementById("nav-" + v);
@@ -858,6 +894,27 @@ function renderAll() {
     }
   });
 
+  renderStudioScreen(appState, {
+    onSortColumn: (colName) => {
+      if (appState.studio.sortCol === colName) {
+        appState.studio.sortDir = appState.studio.sortDir === "asc" ? "desc" : "asc";
+      } else {
+        appState.studio.sortCol = colName;
+        appState.studio.sortDir = "asc";
+      }
+      renderAll();
+    },
+    onSelectCell: (rowIdx, varName) => {
+      appState.studio.selectedCell = { rowIdx, varName };
+      renderAll();
+    },
+    onTraceEvidence: (linkedIssueId) => {
+      openIssueInSplit(linkedIssueId);
+    }
+  });
+
+  renderExportHubScreen(appState, {});
+
   document.getElementById("nav-split").disabled = !appState.activeIssueId && !appState.activeDirectDocId;
 }
 
@@ -1064,6 +1121,10 @@ function exitSyntheticMode() {
   appState.observatory.selectedIssueId = null;
   appState.observatory.supervisorApproved = false;
   appState.observatory.approvedAt = null;
+  appState.studio.selectedCell = null;
+  appState.studio.page = 1;
+  appState.exportHub.reportGenerated = false;
+  appState.exportHub.history = [];
   appState.merger.activeSubTab = "sources";
   document.getElementById("synthetic-banner").hidden = true;
   document.getElementById("btn-toggle-synthetic").textContent = "Dev Preview: Synthetic Fixture";
@@ -1648,5 +1709,163 @@ function bindObservatoryControls() {
   document.getElementById("qo-next-page").addEventListener("click", () => {
     appState.observatory.pagination.page += 1;
     renderAll();
+  });
+}
+
+function bindStudioControls() {
+  document.getElementById("st-btn-view-val").addEventListener("click", () => switchView("analytics"));
+  document.getElementById("st-btn-open-export").addEventListener("click", () => switchView("export"));
+
+  document.querySelectorAll("[data-st-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      appState.studio.activeTab = btn.getAttribute("data-st-tab");
+      renderAll();
+    });
+  });
+
+  document.getElementById("st-mode-values").addEventListener("click", () => {
+    appState.studio.showLabels = false;
+    renderAll();
+  });
+
+  document.getElementById("st-mode-labels").addEventListener("click", () => {
+    appState.studio.showLabels = true;
+    renderAll();
+  });
+
+  document.getElementById("st-search").addEventListener("input", (e) => {
+    appState.studio.search = e.target.value;
+    appState.studio.page = 1;
+    renderAll();
+  });
+
+  document.getElementById("st-prev-page").addEventListener("click", () => {
+    appState.studio.page = Math.max(1, appState.studio.page - 1);
+    renderAll();
+  });
+
+  document.getElementById("st-next-page").addEventListener("click", () => {
+    appState.studio.page += 1;
+    renderAll();
+  });
+
+  document.getElementById("st-freq-var").addEventListener("change", () => renderAll());
+}
+
+function bindExportHubControls() {
+  document.getElementById("eh-btn-back-studio").addEventListener("click", () => switchView("studio"));
+  document.getElementById("eh-btn-back-home").addEventListener("click", () => switchView("home"));
+
+  const syncFilters = () => {
+    appState.exportHub.filters.sex = document.getElementById("eh-filter-sex").value;
+    appState.exportHub.filters.diagnosis = document.getElementById("eh-filter-diag").value;
+    appState.exportHub.filters.facility = document.getElementById("eh-filter-fac").value;
+    appState.exportHub.filters.ageMin = document.getElementById("eh-filter-agemin").value;
+    appState.exportHub.filters.ageMax = document.getElementById("eh-filter-agemax").value;
+    renderAll();
+  };
+
+  ["eh-filter-sex", "eh-filter-diag", "eh-filter-fac"].forEach((id) =>
+    document.getElementById(id).addEventListener("change", syncFilters)
+  );
+  ["eh-filter-agemin", "eh-filter-agemax"].forEach((id) =>
+    document.getElementById(id).addEventListener("input", syncFilters)
+  );
+
+  document.getElementById("eh-btn-reset-filters").addEventListener("click", () => {
+    appState.exportHub.filters = { sex: "ALL", diagnosis: "ALL", facility: "ALL", ageMin: "", ageMax: "" };
+    document.getElementById("eh-filter-agemin").value = "";
+    document.getElementById("eh-filter-agemax").value = "";
+    renderAll();
+  });
+
+  document.getElementById("eh-btn-gen-report").addEventListener("click", () => {
+    appState.exportHub.sections = {
+      profile: document.getElementById("eh-sec-profile").checked,
+      demographic: document.getElementById("eh-sec-demo").checked,
+      clinical: document.getElementById("eh-sec-clin").checked,
+      geographic: document.getElementById("eh-sec-geo").checked,
+      quality: document.getElementById("eh-sec-qual").checked
+    };
+    appState.exportHub.reportGenerated = true;
+    renderAll();
+    showToast("Generated institutional report preview from current dataset.");
+  });
+
+  const syncExportConfig = () => {
+    appState.exportHub.config.format = document.getElementById("eh-export-format").value;
+    appState.exportHub.config.scope = document.getElementById("eh-export-scope").value;
+    appState.exportHub.config.includeLabels = document.getElementById("eh-opt-labels").checked;
+    appState.exportHub.config.anonymisation.removeDirectIds = document.getElementById("eh-opt-anon-remove").checked;
+    appState.exportHub.config.anonymisation.pseudonymiseIds = document.getElementById("eh-opt-anon-pseudo").checked;
+    renderAll();
+  };
+
+  ["eh-export-format", "eh-export-scope", "eh-opt-labels", "eh-opt-anon-remove", "eh-opt-anon-pseudo"].forEach((id) =>
+    document.getElementById(id).addEventListener("change", syncExportConfig)
+  );
+
+  document.getElementById("eh-btn-export-now").addEventListener("click", async () => {
+    const eh = appState.exportHub;
+    const records = appState.observatory.records || [];
+    const filtered = applyExportFilters(records, eh.filters);
+    const scopeRows = eh.config.scope === "FILTERED" ? filtered : records;
+
+    if (scopeRows.length === 0 && eh.config.format !== "sps") {
+      showToast("No records in selected export scope.");
+      return;
+    }
+
+    const exportCopy = buildAnonymisedCopy(scopeRows, eh.config.anonymisation);
+    const fmt = eh.config.format;
+    const stamp = new Date().toISOString().slice(0, 10);
+    const filename = `MediExtract_${stamp}_${eh.config.scope.toLowerCase()}.${fmt}`;
+    const anonSummary = eh.config.anonymisation.pseudonymiseIds
+      ? "Pseudonymised IDs"
+      : eh.config.anonymisation.removeDirectIds
+        ? "Direct IDs Removed"
+        : "Original IDs";
+
+    if (fmt === "csv" || fmt === "sps") {
+      const content =
+        fmt === "csv"
+          ? generateCsvContent(exportCopy, appState.studio.variables, eh.config.includeLabels)
+          : generateSpsSyntax(appState.studio.variables, filename);
+      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+
+      eh.history.unshift({
+        filename,
+        format: `.${fmt}`,
+        scope: `${eh.config.scope} (${exportCopy.length} rows)`,
+        timestamp: new Date().toLocaleTimeString(),
+        anonSummary,
+        ok: true,
+        downloadUrl: url
+      });
+      renderAll();
+      showToast(`Generated ${filename} — ready for download in Export History.`);
+      return;
+    }
+
+    // Binary formats (.sav, .xlsx, .dta) require pyreadstat/openpyxl backend
+    const res = await exportDatasetOnBackend(appState.activeProjectId, {
+      format: fmt,
+      scope: eh.config.scope,
+      anonymisation: eh.config.anonymisation
+    });
+
+    eh.history.unshift({
+      filename,
+      format: `.${fmt}`,
+      scope: `${eh.config.scope} (${exportCopy.length} rows)`,
+      timestamp: new Date().toLocaleTimeString(),
+      anonSummary,
+      ok: Boolean(res.ok),
+      downloadUrl: res.data?.downloadUrl || null,
+      errorNote: res.ok ? "" : "pyreadstat backend offline"
+    });
+    renderAll();
+    showToast(res.ok ? `Exported ${filename}` : res.message);
   });
 }

@@ -1,0 +1,164 @@
+/* ==========================================================================
+   MediExtract — Screen 06: The Analysis Studio (Dual-View Web SPSS)
+   Visual Identity: White (#FFFFFF), Electric Blue (#477FF5),
+   Deep Forest (#183B35), Signal Lime (#C5E86C), Coral (#FF785E), Ink (#20252D)
+   ========================================================================== */
+
+.st-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--rule-hairline);
+  background: var(--bg-soft);
+}
+
+.st-toggle-pill {
+  display: inline-flex;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #FFFFFF;
+}
+
+.st-toggle-pill button {
+  border: 0;
+  background: transparent;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+
+.st-toggle-pill button.active {
+  background: var(--bg-forest);
+  color: #FFFFFF;
+}
+
+.st-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.st-split > .panel {
+  min-width: 0;
+}
+
+.st-grid-viewport {
+  max-height: 460px;
+  overflow: auto;
+  border: 1px solid var(--rule-hairline);
+  border-radius: var(--radius-sm);
+  background: #FFFFFF;
+}
+
+.st-spss-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  table-layout: fixed;
+}
+
+.st-spss-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #F4F6FA;
+  border-bottom: 2px solid var(--rule-strong);
+  border-right: 1px solid var(--rule-hairline);
+  padding: 8px 10px;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-main);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.st-spss-table thead th:hover {
+  background: var(--bg-light-blue);
+}
+
+.st-spss-table tbody td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--rule-hairline);
+  border-right: 1px solid var(--rule-hairline);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.st-spss-table tbody td.st-rownum {
+  width: 52px;
+  background: var(--bg-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-muted);
+  text-align: right;
+  cursor: default;
+}
+
+.st-spss-table tbody td.selected-cell {
+  background: var(--bg-light-blue);
+  outline: 2px solid var(--accent-blue);
+  outline-offset: -2px;
+  font-weight: 600;
+}
+
+.st-inspector {
+  position: sticky;
+  top: 76px;
+  padding: 18px 20px;
+}
+
+.st-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.st-tools-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.st-freq-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.st-freq-fill {
+  height: 100%;
+  background: var(--accent-blue);
+  border-radius: 999px;
+}
+
+@media (max-width: 1080px) {
+  .st-split,
+  .st-tools-grid {
+    grid-template-columns: 1fr;
+  }
+  .st-inspector {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .st-overview-grid {
+    grid-template-columns: 1fr;
+  }
+}

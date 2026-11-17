@@ -163,7 +163,63 @@ type RuleSeverity = "WARNING" | "BLOCKER";
 
 ---
 
-## 5. REST Endpoints Summary
+## 5. Multi-Clerk SPSS Harmonizer & Master Merger
+
+### 5.1 Pre-Merge Inspection (`POST /api/v1/projects/{project_id}/merge/inspect`)
+Accepts `multipart/form-data` with $2\text{–}50+$ `.sav` files and returns a complete diagnostic & reconciliation plan before executing the merge:
+
+```json
+{
+  "merge_session_id": "mrg_2025_11_17_01",
+  "files_uploaded": 32,
+  "total_rows_across_files": 28450,
+  "exact_schema_matches": 27,
+  "variable_drifts": [
+    {
+      "source_file": "Clerk_Tolu_Oct.sav",
+      "source_variable": "treatment2",
+      "suggested_master_variable": "Treatment2",
+      "action": "AUTO_RENAME",
+      "confidence": 1.0
+    },
+    {
+      "source_file": "Clerk_Bola_Oct.sav",
+      "source_variable": "Patient_Phone2",
+      "suggested_master_variable": "Phone_contact",
+      "action": "PROMPT_USER",
+      "confidence": 0.82
+    }
+  ],
+  "codebook_collisions_resolved": [
+    {
+      "variable": "Diagnosis1",
+      "source_file": "Clerk_Bola_Oct.sav",
+      "original_code": 265.0,
+      "label": "Costochondritis",
+      "conflict_with_master_label": "Eczema",
+      "new_assigned_code": 266.0,
+      "rows_recoded": 14
+    }
+  ],
+  "type_coercions": [
+    {
+      "source_file": "Clerk_Segun_Oct.sav",
+      "variable": "LGA",
+      "from_type": "numeric",
+      "to_type": "string",
+      "status": "AUTO_HEALED"
+    }
+  ],
+  "cross_file_duplicates_detected": 19
+}
+```
+
+### 5.2 Execute Master Merge (`POST /api/v1/projects/{project_id}/merge/execute`)
+Applies user-approved variable mappings, executes vectorized codebook recoding, removes cross-file duplicates, appends to the project's master dataset, and returns the download URL for the unified `MASTER_MERGED.sav`.
+
+---
+
+## 6. REST Endpoints Summary
 
 | Method | Path | Description |
 | :--- | :--- | :--- |
@@ -174,5 +230,7 @@ type RuleSeverity = "WARNING" | "BLOCKER";
 | `POST` | `/api/v1/projects/{id}/reviews/{rev_id}/confirm` | Confirm or override a low-confidence field and commit to SPSS |
 | `GET` | `/api/v1/projects/{id}/cases` | Paginated / virtual-window query of SPSS Data View rows |
 | `POST` | `/api/v1/projects/{id}/reports/validation` | Generate full or filtered Data Analyst Validation Report |
+| `POST` | `/api/v1/projects/{id}/merge/inspect` | Inspect 2–50+ clerks' `.sav` files for variable drift & codebook collisions |
+| `POST` | `/api/v1/projects/{id}/merge/execute` | Harmonize, recode, deduplicate, and merge multiple `.sav` files into one Master `.sav` |
 | `GET` | `/api/v1/projects/{id}/export/sav` | Download native `.sav` binary (optional `?anonymize=true`) |
 | `GET` | `/api/v1/projects/{id}/export/sps` | Download reproducible IBM SPSS `.sps` syntax file |

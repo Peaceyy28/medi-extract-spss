@@ -32,7 +32,7 @@ This legacy manual entry workflow has four critical bottlenecks:
 
 ---
 
-## 3. Detailed Feature Specifications (9 Core Pillars)
+## 3. Detailed Feature Specifications (10 Core Pillars)
 
 ### Feature 1: Dual-Mode Ingestion (Scanner Hot Folder + Manual Upload)
 * **Automatic Hot-Folder Watcher:** Background process continuously monitors `C:\EncounterForms\ScanQueue`. The moment a physical scanner drops a PDF/TIFF, the file is ingested within 1 second.
@@ -91,3 +91,12 @@ This legacy manual entry workflow has four critical bottlenecks:
 * **Zero Cloud Dependency:** Operates entirely on the local computer or local office network (LAN); immune to hospital internet outages.
 * **NDPA / HIPAA Compliance:** Sensitive patient medical data and names never leave the local machine.
 * **1-Click De-Identification:** Option to export anonymized datasets (stripping patient names and phone numbers) for academic research.
+
+### Feature 10: Multi-Clerk SPSS Harmonizer & Master Merger (`.sav` Consolidator)
+* **The Real-World Problem Solved:** When 30+ data entry clerks enter records independently on separate laptops, their `.sav` files inevitably diverge—clerks add custom variable names, use slightly different capitalization (`treatment2` vs `Treatment2`), change string widths, or assign conflicting numeric codes to new diagnoses (e.g., Clerk A assigns `265 = Eczema` while Clerk B assigns `265 = Asthma`). Standard IBM SPSS `Add Cases` either fails with type/width errors or silently corrupts medical data when numeric codes collide.
+* **4-Layer Automatic Harmonization Pipeline:**
+  1. **Master Variable Name Alignment:** Compares all uploaded `.sav` files against the project's Standard Variable List. Automatically normalizes case/spelling drift and prompts 1-click mapping for custom columns added by individual clerks.
+  2. **Semantic Codebook Reconciliation (By Meaning, Not Raw Number):** Reads every file's `variable_value_labels` dictionary before merging. If File A maps `265 -> Eczema` and File B maps `265 -> Asthma`, the engine detects the collision, assigns `265 -> Eczema` and `266 -> Asthma` in the unified master codebook, and **automatically recodes File B's case values** from `265` to `266`. Conversely, if two clerks assigned different numbers to the *same* diagnosis (`265 -> Asthma` and `270 -> Asthma`), both are unified under one canonical code.
+  3. **Type & String-Width Auto-Healing:** Automatically coerces mismatched types (e.g., String `"26"` $\rightarrow$ Numeric `26.0`) and expands string variable widths to the maximum length across all uploaded files so zero text is truncated.
+  4. **Cross-Clerk Deduplication ($O(1)$ Hash Set):** Detects and removes duplicate patient encounters entered across different laptops (`OYSHIA_ID + Date + Facility`).
+* **Output:** Produces a single, 100% harmonized `MASTER_MERGED.sav` file alongside a **Merge & Harmonization Audit Report** detailing every reconciled variable and recoded value label.

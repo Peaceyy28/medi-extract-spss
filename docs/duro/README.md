@@ -15,10 +15,11 @@
   - [ ] Commit synthetic, non-PII OYSHIA fixture JSON & `.sav` in `/fixtures` so Peace can test `P1–P4` immediately.
   - [ ] Add `pytest` unit tests for `.sav` round-trip integrity.
 
-- [ ] **D2 — Multi-Project Workspace Manager & Auto-Schema Discovery** (`feat/d2-projects-autoschema`)
+- [ ] **D2 — Multi-Project Workspace Manager, Auto-Schema & Multi-Clerk `.SAV` Merger** (`feat/d2-projects-autoschema`)
   - [ ] Implement isolated project workspaces (`GET /api/v1/projects`, `POST /api/v1/projects`).
   - [ ] Mode A: Clone Variable View schema directly from an uploaded `.sav` template.
   - [ ] Mode B: Auto-discover draft Variable View schema from an uploaded blank questionnaire PDF.
+  - [ ] Implement Multi-Clerk SPSS Harmonizer & Master Merger (`POST /api/v1/projects/{id}/merge/inspect` and `/merge/execute`): align variable drift, reconcile conflicting Value Label codebooks by meaning, auto-heal string/numeric type mismatches, and deduplicate across 30+ `.sav` files.
 
 - [ ] **D3 — Dual Scanner Ingestion, OpenCV Pre-processor & OMR** (`feat/d3-scanner-opencv-omr`)
   - [ ] Implement `watchdog` Hot-Folder listener (`C:\EncounterForms\ScanQueue`) with write-completion debouncing + manual PDF/file-path upload endpoint.

@@ -33,7 +33,8 @@
   - [ ] Implement the live `1 ↔ Words` Value Labels toggle button and cell-click cropped paper provenance popover.
   - [ ] Build the Filtered Data Analyst Validation Report interface (`FacilityPHC`, `LGA`, `Month`, `Issue Type` filters + scorecards & charts).
 
-- [ ] **P5 — Live Backend Integration, Project Setup Wizard & Export Polish** (`feat/p5-live-integration-polish`)
+- [ ] **P5 — Live Backend Integration, Project Setup Wizard & Multi-Clerk `.SAV` Merger UI** (`feat/p5-live-integration-polish`)
   - [ ] Connect frontend to DuroT's `D1–D5` endpoints.
   - [ ] Build the 2-Minute New Project Wizard (`.sav` template upload vs. blank PDF upload).
+  - [ ] Build the Multi-Clerk SPSS Harmonizer & Master Merger UI (bulk dropzone for 30+ `.sav` files, pre-merge variable/codebook reconciliation card, and 1-click unified `MASTER.sav` download).
   - [ ] Connect 1-click `.sav`, `.sps`, PDF report, and Excel exports (including `[✓] Anonymize PII for Research`).

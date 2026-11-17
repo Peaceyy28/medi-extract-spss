@@ -31,6 +31,7 @@ Place a stack of paper forms into the scanner (or drop a scanned PDF). MediExtra
 3. **Human-First Guided Verification Station** — Fields with $\ge 90\%$ confidence auto-save. Low-confidence handwriting is surfaced one question at a time alongside the **cropped image snippet of the doctor's ink** for 1-click confirmation.
 4. **Inbuilt Dual-View Web SPSS Studio** — Virtualized spreadsheet supporting **Data View**, **Variable View**, live **`1 ↔ Words` Value Labels toggling**, cell-level paper provenance popovers, and **1-click native `.sav` binary export** via `pyreadstat`.
 5. **Multi-Project & Analyst Validation Engine** — Create isolated project workspaces for any new form (by uploading an existing `.sav` template or a blank PDF questionnaire). Generates comprehensive **Data Analyst Validation Reports** (with custom filtering by Facility, LGA, Month, or Condition).
+6. **Multi-Clerk SPSS Harmonizer & Master Merger** — Upload 30+ clerks' separate `.sav` files at once. Automatically aligns variable spelling/case drift, reconciles conflicting Value Label codebooks by meaning (so one clerk's `265 = Eczema` never overwrites another clerk's `265 = Asthma`), auto-heals string/numeric type mismatches, removes cross-file duplicates, and outputs one unified `MASTER.sav`.
 
 ## How the pipeline scales (Big $O$ architecture)
 

@@ -59,7 +59,14 @@ Per accessibility and clinical safety standards, data states **never rely on col
 - **Filtered Analyst Report Drawer:** Filter by `FacilityPHC`, `LGA`, `Month`, or `Issue Type`, and export as a formatted PDF or Excel Discrepancy Log.
 - **1-Click Export:** Native `.sav` binary, `.sps` syntax, or `.xlsx` workbook (with optional `[✓] Anonymize PII for Research`).
 
-### 2.5 Page 4 — Project & Schema Studio (Supervisor View)
+### 2.5 Page 4 — Project, Schema & Multi-File Merger Studio (Supervisor View)
 - **2-Minute New Project Wizard:**
   1. Upload an existing `.sav` file to clone its Variable View automatically, **OR**
   2. Upload a blank questionnaire PDF to auto-discover fields and generate a draft Variable View.
+- **Multi-Clerk SPSS Harmonizer & Master Merger:**
+  - **Bulk `.SAV` Dropzone:** Drop 2 to 50+ clerks' `.sav` files at once.
+  - **Pre-Merge Reconciliation Card:**
+    - Shows auto-fixed capitalization/variable drift (`treatment2` $\rightarrow$ `Treatment2`).
+    - Shows auto-resolved Value Label codebook collisions (e.g., *Clerk B's `265 = Costochondritis` recoded to `266` so it doesn't overwrite `265 = Eczema`*).
+    - Simple 1-click prompt for any brand-new column added by a clerk (`[Map to Existing Variable ▾]` · `[Keep as New Standard Column]` · `[Drop Column]`).
+  - **1-Click Master Merge:** Outputs unified `MASTER_MERGED.sav` + Merge Audit Summary.

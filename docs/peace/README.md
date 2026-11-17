@@ -25,18 +25,14 @@
   - [x] Build magic-byte file signature verification (`PDF`, `JPG`, `PNG`), SHA-256 content fingerprinting, and interactive Duplicate Detection resolution.
   - [x] Build paginated Intake Ledger (search, sort, status filter, facility filter, multi-selection, page-level Document Detail modal, explicit Delete confirmation) and distinct Document vs. Page overview counts.
 
-- [ ] **P3 — Distraction-Free Guided Verification Station** (`feat/p3-guided-verification`)
-  - [ ] Build cropped handwriting snippet viewer (with pan/zoom and full-page toggle).
-  - [ ] Build plain-English Question & Answer confirmation card with semantic codebook candidate dropdown.
-  - [ ] Implement keyboard navigation (`Enter` to approve, `Tab` to switch).
+- [x] **P3 — Screen 04: The Evidence Room & Review Queue** (`feat/p1-ui-ux-design-shell`)
+  - [x] Direct `#nav-split` ("Evidence Room") route with designed empty state, document switcher, multi-field list, `Fit Width` / `Fit Page`, `Confirm` / `Edit` / `Flag` / `N/A or Missing`, unsaved-change guard, document progress bar, and Supervisor Quality Sampling (`evidence-split.js`, `evidence-room.css`, `queue.js`).
 
-- [ ] **P4 — Virtualized Dual-View Web SPSS Matrix & Analyst Reports UI** (`feat/p4-web-spss-and-reports`)
-  - [ ] Build $O(K)$ virtualized Data View spreadsheet (60 FPS on 10,981+ cases) and Variable View codebook inspector.
-  - [ ] Implement the live `1 ↔ Words` Value Labels toggle button, 1-Click Auto-Recode button (`Age_Group` & `Primary_Disease_Category`), and cell-click cropped paper provenance popover.
-  - [ ] Build the Filtered Data Analyst Validation Report interface (`FacilityPHC`, `LGA`, `Month`, `Issue Type` filters + Diagnosis-to-Drug Prescription Audit alerts + scorecards & charts).
+- [x] **P4 — Screens 05–06: The Quality Observatory & The Analysis Studio** (`feat/p1-ui-ux-design-shell`)
+  - [x] Quality Observatory (`observatory.js`, `quality-observatory.css`): Value/Logical/Duplicate rules, `VR-04-RX` Prescription Audit, 6-category landscape, Field-Quality Map, Issue Investigator, and Dataset Readiness Gate.
+  - [x] Analysis Studio (`studio.js`, `analysis-studio.css`): 50-row windowed Dual-View Web SPSS Data View, `Values` ↔ `Labels` toggle, Variable View metadata, Dataset Overview, Cell & Provenance Inspector, and `Auto-Recode` definitions.
 
-- [ ] **P5 — Live Backend Integration, Project Setup Wizard & Multi-Clerk `.SAV` Merger UI** (`feat/p5-live-integration-polish`)
-  - [ ] Connect frontend to DuroT's `D1–D5` endpoints.
-  - [ ] Build the 2-Minute New Project Wizard (`.sav` template upload vs. blank PDF upload).
-  - [ ] Build the Multi-Clerk SPSS Harmonizer & Master Merger UI (bulk dropzone for 30+ `.sav` files, pre-merge variable/codebook reconciliation card, Per-Clerk Quality Scorecard, and 1-click unified `MASTER.sav` download).
-  - [ ] Connect 1-click `.sav`, `.sps`, PDF report, and Excel exports (including `[✓] Anonymize PII for Research`).
+- [x] **P5 — Screens 03 & 07: Master Merger & Intelligence/Export Hub UI** (`feat/p1-ui-ux-design-shell`)
+  - [x] Master Merger (`merger.js`, `master-merger.css`): `.sav` magic-byte check, Variable Alignment, SVG Codebook Reconciliation Bench, Conflict Register, and Merge Gate.
+  - [x] Intelligence & Export Hub (`export-hub.js`, `export-hub.css`): Schema-driven filtering, descriptive charts, Report Builder/Preview, Anonymisation preview, client-side `.csv`/`.sps` export generation, and Export History Register.
+  - [ ] Connect to DuroT's FastAPI / `pyreadstat` / OCR backend endpoints on `http://localhost:8000/api/v1` once implemented.

@@ -108,3 +108,55 @@ export async function submitDecisionToBackend(projectId, reviewId, payload) {
     return { ok: false, reason: "NETWORK_ERROR", message: err.message };
   }
 }
+
+export async function inspectMergeFilesOnBackend(projectId, files) {
+  if (!apiState.connected) {
+    return {
+      ok: false,
+      reason: "BACKEND_UNAVAILABLE",
+      message: "pyreadstat inspection endpoint (/api/v1/projects/{id}/merge/inspect) is not connected. Source files held locally without fabricated schema parsing."
+    };
+  }
+
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append("files", file);
+  }
+
+  try {
+    const res = await fetch(`${apiState.baseUrl}/projects/${encodeURIComponent(projectId)}/merge/inspect`, {
+      method: "POST",
+      body: formData
+    });
+    if (!res.ok) {
+      return { ok: false, reason: "HTTP_ERROR", message: `Server returned HTTP ${res.status}` };
+    }
+    return { ok: true, data: await res.json() };
+  } catch (err) {
+    return { ok: false, reason: "NETWORK_ERROR", message: err.message };
+  }
+}
+
+export async function executeMasterMergeOnBackend(projectId, payload) {
+  if (!apiState.connected) {
+    return {
+      ok: false,
+      reason: "BACKEND_UNAVAILABLE",
+      message: "Master merge blocked: pyreadstat merge execution backend (/api/v1/projects/{id}/merge/execute) is offline."
+    };
+  }
+
+  try {
+    const res = await fetch(`${apiState.baseUrl}/projects/${encodeURIComponent(projectId)}/merge/execute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      return { ok: false, reason: "HTTP_ERROR", message: `Server returned HTTP ${res.status}` };
+    }
+    return { ok: true, data: await res.json() };
+  } catch (err) {
+    return { ok: false, reason: "NETWORK_ERROR", message: err.message };
+  }
+}

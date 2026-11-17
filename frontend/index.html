@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="css/workstation.css" />
   <link rel="stylesheet" href="css/project-index.css" />
   <link rel="stylesheet" href="css/receiving-desk.css" />
+  <link rel="stylesheet" href="css/master-merger.css" />
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
 </head>
@@ -41,6 +42,7 @@
       <button type="button" class="nav-tab" id="nav-intake" data-view="intake">Paper Intake</button>
       <button type="button" class="nav-tab" id="nav-queue" data-view="queue">Review Queue</button>
       <button type="button" class="nav-tab" id="nav-split" data-view="split" disabled>Evidence Split</button>
+      <button type="button" class="nav-tab" id="nav-merger" data-view="merger">Master Merger</button>
       <button type="button" class="nav-tab" id="nav-analytics" data-view="analytics">Analytics</button>
       <button type="button" class="nav-tab" id="nav-settings" data-view="settings">Settings</button>
     </nav>
@@ -659,6 +661,262 @@
         <span><kbd>+</kbd> <kbd>−</kbd> Zoom Document</span>
         <span style="color:var(--ink-on-dark-muted);">Shortcuts pause automatically while typing</span>
       </div>
+    </section>
+
+    <!-- ====================================================================
+         SCREEN 03: THE MASTER MERGER — THE RECONCILIATION BENCH
+         ==================================================================== -->
+    <section id="view-merger" aria-label="Master Merger — The Reconciliation Bench" hidden>
+
+      <!-- Editorial Intro + Deep Forest Merger Anchor Card -->
+      <div class="rd-intro-grid">
+        <div>
+          <span class="mono-tag" style="color:var(--accent-blue);">SCREEN 03 · THE RECONCILIATION BENCH</span>
+          <h1 class="rd-heading">Bring the <em>datasets</em> together.</h1>
+          <p class="rd-sub">
+            Align variables, reconcile codebooks and build a master dataset without losing the history of your source records.
+          </p>
+        </div>
+
+        <div class="rd-batch-card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+            <div>
+              <span class="mono-tag" style="color:var(--ink-on-forest-muted);">PROJECT WORKSPACE</span>
+              <div style="font-size:18px; font-weight:600; margin-top:4px;" id="mm-project-name">—</div>
+            </div>
+            <div id="mm-status-badge" class="status-badge">◷ Awaiting .SAV Sources</div>
+          </div>
+          <div class="rd-batch-meta-grid">
+            <div><span class="mono-tag">SOURCE MUTABILITY</span><strong>Immutable Originals</strong></div>
+            <div><span class="mono-tag">PROVENANCE</span><strong>Clerk · File · Row · Batch</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5-Step Reconciliation Bench Sub-Navigation -->
+      <div class="mm-subnav" role="tablist" aria-label="Master Merger sections">
+        <button type="button" class="mm-step-pill active" id="mm-subbtn-sources" data-mm-tab="sources">
+          <span class="mm-step-num">01</span> Source Register (<span id="mm-count-sources">0</span>)
+        </button>
+        <button type="button" class="mm-step-pill" id="mm-subbtn-variables" data-mm-tab="variables">
+          <span class="mm-step-num">02</span> Variable Alignment (<span id="mm-count-vars">0</span>)
+        </button>
+        <button type="button" class="mm-step-pill" id="mm-subbtn-codebook" data-mm-tab="codebook">
+          <span class="mm-step-num">03</span> Codebook Reconciliation (<span id="mm-count-cb">0</span>)
+        </button>
+        <button type="button" class="mm-step-pill" id="mm-subbtn-conflicts" data-mm-tab="conflicts">
+          <span class="mm-step-num">04</span> Conflict Register (<span id="mm-count-conflicts">0</span>)
+        </button>
+        <button type="button" class="mm-step-pill" id="mm-subbtn-preview" data-mm-tab="preview">
+          <span class="mm-step-num">05</span> Merge Preview &amp; Execute
+        </button>
+      </div>
+
+      <!-- PANE 1: SOURCE REGISTER -->
+      <div id="mm-pane-sources">
+        <div class="rd-upload-shell compact" id="mm-dropzone" tabindex="0" role="region" aria-label="Import clerk SPSS .sav files">
+          <div class="rd-upload-inner">
+            <div>
+              <span class="mono-tag" style="color:var(--accent-blue);">IMPORT CLERK DATASETS · IBM SPSS (.SAV) · 2–50+ FILES</span>
+              <p style="margin:4px 0 2px; font-weight:600; font-size:15px;">
+                Drop clerks' <code>.sav</code> files here, or browse to add sources
+              </p>
+              <p style="margin:0; color:var(--ink-secondary); font-size:12.5px;">
+                Verified by IBM SPSS binary header (<code>$FL2</code>/<code>$FL3</code>). Original files remain immutable.
+              </p>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <input type="text" id="mm-clerk-input" class="input-control" placeholder="Clerk / Source name (optional)…" />
+              <label class="btn btn-electric" for="mm-file-input">Import .SAV Files</label>
+              <input type="file" id="mm-file-input" accept=".sav" multiple class="sr-only" />
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Source Register</h2>
+              <span class="mono-tag">All imported clerk .sav datasets retained for reconciliation</span>
+            </div>
+          </div>
+
+          <div id="mm-sources-empty" class="empty-state">
+            <h3>No .sav source files imported yet</h3>
+            <p>Import two or more clerks' IBM SPSS <code>.sav</code> files above to inspect schemas, variable drift, and codebook collisions.</p>
+          </div>
+
+          <div id="mm-sources-table-wrap" class="queue-table-wrap" hidden>
+            <table class="queue-table">
+              <thead>
+                <tr>
+                  <th>Original Filename</th>
+                  <th>Clerk / Source</th>
+                  <th>Records</th>
+                  <th>Variables</th>
+                  <th>Import Status</th>
+                  <th>Schema Status</th>
+                  <th>Reconciliation</th>
+                  <th>Imported</th>
+                  <th style="text-align:right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="mm-sources-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANE 2: VARIABLE ALIGNMENT -->
+      <div id="mm-pane-variables" hidden>
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Variable Alignment Workspace</h2>
+              <span class="mono-tag">Compares names, labels, data types, value labels, missing definitions, and measurement levels</span>
+            </div>
+          </div>
+
+          <div id="mm-vars-empty" class="empty-state">
+            <h3>No variable mappings to review</h3>
+            <p>Import clerk <code>.sav</code> files and run backend schema inspection (or load the Synthetic Preview) to align incoming variables against the master schema.</p>
+          </div>
+
+          <div id="mm-vars-table-wrap" class="queue-table-wrap" hidden>
+            <table class="queue-table">
+              <thead>
+                <tr>
+                  <th>Incoming Source Variable</th>
+                  <th>Classification &amp; Rationale</th>
+                  <th>Proposed Master Variable</th>
+                  <th>Approval Status</th>
+                  <th style="text-align:right;">Supervisor Decision</th>
+                </tr>
+              </thead>
+              <tbody id="mm-vars-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANE 3: CODEBOOK RECONCILIATION -->
+      <div id="mm-pane-codebook" hidden>
+        <div id="mm-cb-empty" class="panel empty-state">
+          <h3>No codebook mappings to reconcile</h3>
+          <p>When source files contain differing numeric codes for identical labels (or identical codes for different labels), they appear here for visual verification.</p>
+        </div>
+
+        <div id="mm-cb-bench-wrap" hidden>
+          <div class="cb-bench">
+            <div class="cb-col-source">
+              <div class="mono-tag" style="margin-bottom:12px;">SOURCE CLERK CODEBOOK</div>
+              <div id="cb-source-list"></div>
+            </div>
+            <div class="cb-col-lines">
+              <svg id="cb-svg-lines" width="120" style="width:120px;"></svg>
+            </div>
+            <div class="cb-col-master">
+              <div class="mono-tag" style="margin-bottom:12px; color:var(--bg-forest);">PROPOSED MASTER CODEBOOK</div>
+              <div id="cb-master-list"></div>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top:14px; padding:16px 20px;" id="cb-selected-detail"></div>
+        </div>
+      </div>
+
+      <!-- PANE 4: CONFLICT REGISTER -->
+      <div id="mm-pane-conflicts" hidden>
+        <div class="panel">
+          <div class="queue-controls">
+            <div class="queue-inputs">
+              <select id="mm-conf-sev" class="input-control">
+                <option value="ALL">All Severities</option>
+                <option value="MANDATORY">Mandatory Blockers</option>
+                <option value="WARNING">Warnings</option>
+              </select>
+              <select id="mm-conf-type" class="input-control">
+                <option value="ALL">All Conflict Types</option>
+                <option value="VARIABLE_NAME">Variable Name Conflict</option>
+                <option value="LABEL">Label Conflict</option>
+                <option value="TYPE_INCOMPATIBILITY">Type Incompatibility</option>
+                <option value="VALUE_LABEL">Value-Label Conflict</option>
+                <option value="MISSING_VALUE">Missing-Value Difference</option>
+                <option value="UNMAPPED_CATEGORY">Unmapped Category</option>
+                <option value="CONVERSION_FAILURE">Conversion Failure</option>
+                <option value="DUPLICATE_RECORD">Duplicate Candidate</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="mm-conf-empty" class="empty-state"></div>
+          <div id="mm-conf-table-wrap" class="queue-table-wrap" hidden>
+            <table class="queue-table">
+              <thead>
+                <tr>
+                  <th>Severity</th>
+                  <th>Conflict Type</th>
+                  <th>Affected Sources</th>
+                  <th>Variable</th>
+                  <th>Affected Rows</th>
+                  <th>Recommended Resolution</th>
+                  <th>Status</th>
+                  <th style="text-align:right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="mm-conf-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANE 5: MERGE PREVIEW & EXPLICIT EXECUTION -->
+      <div id="mm-pane-preview" hidden>
+        <div class="mm-preview-grid">
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Master Dataset Merge Preview</h2>
+              <span class="mono-tag">Estimates shown until pyreadstat confirms execution</span>
+            </div>
+            <div class="batch-metrics" style="grid-template-columns: repeat(3, 1fr);">
+              <div class="metric-cell"><div class="metric-label">Source Files</div><div class="metric-value" id="mp-sources">0</div></div>
+              <div class="metric-cell"><div class="metric-label">Expected Records</div><div class="metric-value" id="mp-records">0</div></div>
+              <div class="metric-cell"><div class="metric-label">Master Variables</div><div class="metric-value" id="mp-vars">0</div></div>
+              <div class="metric-cell"><div class="metric-label">Resolved Conflicts</div><div class="metric-value" id="mp-resolved" style="color:var(--signal-verified);">0</div></div>
+              <div class="metric-cell"><div class="metric-label">Unresolved Mandatory</div><div class="metric-value" id="mp-unresolved" style="color:var(--signal-oxide);">0</div></div>
+              <div class="metric-cell"><div class="metric-label">Duplicate Candidates</div><div class="metric-value" id="mp-dups" style="color:var(--signal-amber-ink);">0</div></div>
+            </div>
+            <div style="padding:16px 20px; font-size:13px;">
+              <strong>Preserved Provenance Columns in Master Output:</strong>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                <span class="status-badge">Source_Clerk</span>
+                <span class="status-badge">Original_Filename</span>
+                <span class="status-badge">Original_Row_Number</span>
+                <span class="status-badge">Source_Batch_Ref</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mm-gate-card">
+            <div>
+              <span class="mono-tag" style="color:var(--ink-on-forest-muted);">EXPLICIT EXECUTION GATE</span>
+              <h3 style="margin:6px 0 0; font-family:var(--font-display); font-size:26px; font-weight:400;">
+                Generate Master <code>.SAV</code>
+              </h3>
+            </div>
+            <div id="mm-gate-status-box" class="mm-blocker-box">
+              Import at least 2 clerk .sav files to preview and execute a master merge.
+            </div>
+            <button type="button" class="btn btn-lime" id="btn-execute-master-merge" disabled style="width:100%; padding:12px;">
+              Confirm &amp; Execute Master Merge (pyreadstat) →
+            </button>
+            <div style="font-size:12px; color:var(--ink-on-forest-muted);">
+              Source files remain immutable. Generates a new master dataset rather than overwriting clerk originals.
+            </div>
+          </div>
+        </div>
+      </div>
+
     </section>
 
     <!-- ====================================================================

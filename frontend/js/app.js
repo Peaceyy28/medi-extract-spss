@@ -3,9 +3,16 @@
  * Unified State: Project -> Batch -> Documents -> Pages -> Review Queue
  */
 
-import { checkBackendConnection, uploadFilesToBackend, submitDecisionToBackend } from "./api.js";
+import {
+  checkBackendConnection,
+  uploadFilesToBackend,
+  submitDecisionToBackend,
+  inspectMergeFilesOnBackend,
+  executeMasterMergeOnBackend
+} from "./api.js";
 import { validateUploadFile, inspectLocalFile } from "./upload.js";
 import { renderProjectIndex } from "./project-index.js";
+import { validateSavMagicBytes, renderMergerScreen } from "./merger.js";
 import {
   generateBatchReference,
   generateDocumentReference,
@@ -20,10 +27,22 @@ import { renderBatchSummary, renderQueueTable, filterQueueItems } from "./queue.
 import { initViewerControls, renderEvidenceSplit, openEditDrawer, setZoom, viewerState } from "./evidence-split.js";
 
 const appState = {
-  view: "home", // "home" | "intake" | "queue" | "split" | "analytics" | "settings"
+  view: "home", // "home" | "intake" | "queue" | "split" | "merger" | "analytics" | "settings"
+  backendConnected: false,
   syntheticMode: false,
   projectsLoading: false,
   projectsError: null,
+  merger: {
+    activeSubTab: "sources",
+    sources: [],
+    variableMappings: [],
+    codebookMappings: [],
+    selectedCodebookId: null,
+    conflicts: [],
+    conflictFilters: { severity: "ALL", type: "ALL" },
+    duplicateCandidatesCount: 0,
+    mergeCompleted: false
+  },
   projects: [
     {
       id: "proj_oyshia_default",
@@ -67,6 +86,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   bindProjectAndBatchControls();
   bindIntakeUploadControls();
   bindIntakeLedgerControls();
+  bindMergerControls();
   bindQueueFilters();
   bindKeyboardShortcuts();
   bindSyntheticDevPreview();
@@ -77,6 +97,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 async function refreshBackendStatus() {
   const status = await checkBackendConnection();
+  appState.backendConnected = Boolean(status.connected);
   const pill = document.getElementById("backend-boundary-pill");
   const text = document.getElementById("backend-boundary-text");
 
@@ -99,6 +120,7 @@ function bindNavigation() {
   });
   document.getElementById("nav-intake").addEventListener("click", () => switchView("intake"));
   document.getElementById("nav-queue").addEventListener("click", () => switchView("queue"));
+  document.getElementById("nav-merger").addEventListener("click", () => switchView("merger"));
   document.getElementById("nav-analytics").addEventListener("click", () => switchView("analytics"));
   document.getElementById("nav-settings").addEventListener("click", () => switchView("settings"));
   document.getElementById("nav-split").addEventListener("click", () => {
@@ -135,7 +157,7 @@ function bindNavigation() {
 
 function switchView(viewName) {
   appState.view = viewName;
-  ["home", "intake", "queue", "split", "analytics", "settings"].forEach((v) => {
+  ["home", "intake", "queue", "split", "merger", "analytics", "settings"].forEach((v) => {
     const el = document.getElementById("view-" + v);
     if (el) el.hidden = v !== viewName;
     const nav = document.getElementById("nav-" + v);
@@ -144,7 +166,8 @@ function switchView(viewName) {
   document.getElementById("nav-projects").classList.remove("active");
 
   // Show project/batch hierarchy breadcrumb inside workflow screens
-  const showCrumb = viewName === "intake" || viewName === "queue" || viewName === "split";
+  const showCrumb =
+    viewName === "intake" || viewName === "queue" || viewName === "split" || viewName === "merger";
   document.getElementById("hierarchy-breadcrumb-bar").hidden = !showCrumb;
   window.scrollTo({ top: 0, behavior: "instant" });
 
@@ -610,6 +633,98 @@ function renderAll() {
     }
   });
 
+  renderMergerScreen(appState, {
+    onInspectSource: (src) => {
+      showToast(`${src.filename} (${src.clerkIdentity}) — ${src.importStatus}`);
+    },
+    onRemoveSource: (srcId) => {
+      if (!confirm("Remove this .sav source file from the reconciliation bench? The original file on disk is untouched.")) return;
+      appState.merger.sources = appState.merger.sources.filter((s) => s.id !== srcId);
+      renderAll();
+    },
+    onChangeVarTarget: (vmId, newTarget) => {
+      const vm = appState.merger.variableMappings.find((v) => v.id === vmId);
+      if (vm) {
+        vm.targetVar = newTarget;
+        vm.approved = true;
+        renderAll();
+      }
+    },
+    onApproveVar: (vmId) => {
+      const vm = appState.merger.variableMappings.find((v) => v.id === vmId);
+      if (vm) {
+        vm.approved = true;
+        vm.excluded = false;
+        const c = appState.merger.conflicts.find((cf) => cf.linkedId === vmId);
+        if (c) c.status = "RESOLVED";
+        renderAll();
+        showToast(`Approved mapping: ${vm.sourceVar} → ${vm.targetVar}`);
+      }
+    },
+    onCreateMasterVar: (vmId) => {
+      const vm = appState.merger.variableMappings.find((v) => v.id === vmId);
+      if (!vm) return;
+      const newName = prompt("New Master Variable Name:", vm.sourceVar);
+      if (!newName || !newName.trim()) return;
+      vm.targetVar = newName.trim();
+      if (!vm.targetOptions.includes(vm.targetVar)) vm.targetOptions.push(vm.targetVar);
+      vm.approved = true;
+      vm.excluded = false;
+      const c = appState.merger.conflicts.find((cf) => cf.linkedId === vmId);
+      if (c) c.status = "RESOLVED";
+      renderAll();
+      showToast(`Created master variable ${vm.targetVar}`);
+    },
+    onExcludeVar: (vmId) => {
+      const vm = appState.merger.variableMappings.find((v) => v.id === vmId);
+      if (!vm) return;
+      const reason = prompt("Record reason for excluding this variable:");
+      if (!reason || !reason.trim()) return;
+      vm.excluded = true;
+      vm.excludeReason = reason.trim();
+      vm.approved = false;
+      const c = appState.merger.conflicts.find((cf) => cf.linkedId === vmId);
+      if (c) c.status = "RESOLVED";
+      renderAll();
+      showToast(`Excluded ${vm.sourceVar} (${vm.excludeReason})`);
+    },
+    onSelectCodebook: (cbId) => {
+      appState.merger.selectedCodebookId = cbId;
+      renderAll();
+    },
+    onApproveCodebook: (cbId) => {
+      const cb = appState.merger.codebookMappings.find((x) => x.id === cbId);
+      if (cb) {
+        cb.approved = true;
+        const c = appState.merger.conflicts.find((cf) => cf.linkedId === cbId);
+        if (c) c.status = "RESOLVED";
+        renderAll();
+        showToast(`Approved codebook mapping: ${cb.sourceLabel} → ${cb.masterCode}`);
+      }
+    },
+    onJumpToConflict: (c) => {
+      appState.merger.activeSubTab = c.targetTab || "variables";
+      if (c.linkedId && c.targetTab === "codebook") {
+        appState.merger.selectedCodebookId = c.linkedId;
+      }
+      renderAll();
+    },
+    onExecuteMerge: async () => {
+      const res = await executeMasterMergeOnBackend(appState.activeProjectId, {
+        sources: appState.merger.sources.map((s) => s.id),
+        variableMappings: appState.merger.variableMappings,
+        codebookMappings: appState.merger.codebookMappings
+      });
+      if (!res.ok) {
+        showToast(res.message);
+      } else {
+        appState.merger.mergeCompleted = true;
+        renderAll();
+        showToast("Master .SAV dataset generated successfully.");
+      }
+    }
+  });
+
   document.getElementById("nav-split").disabled = !appState.activeIssueId && !appState.activeDirectDocId;
 }
 
@@ -787,6 +902,12 @@ function exitSyntheticMode() {
   appState.selectedDocIds.clear();
   appState.activeIssueId = null;
   appState.activeDirectDocId = null;
+  appState.merger.sources = [];
+  appState.merger.variableMappings = [];
+  appState.merger.codebookMappings = [];
+  appState.merger.conflicts = [];
+  appState.merger.duplicateCandidatesCount = 0;
+  appState.merger.activeSubTab = "sources";
   document.getElementById("synthetic-banner").hidden = true;
   document.getElementById("btn-toggle-synthetic").textContent = "Dev Preview: Synthetic Fixture";
   switchView("intake");
@@ -925,6 +1046,301 @@ function loadSyntheticDevFixture() {
     }
   ];
 
+  appState.merger.sources = [
+    {
+      id: "sav_synth_1",
+      filename: "ClerkA_OYSHIA_Jan.sav",
+      sizeBytes: 248320,
+      header: "$FL2 (Valid SPSS)",
+      clerkIdentity: "Clerk A — Regional PHC",
+      recordCount: 412,
+      variableCount: 28,
+      importStatus: "PARSED",
+      schemaStatus: "Baseline Schema",
+      reconciliationStatus: "Aligned",
+      importedAt: new Date().toISOString()
+    },
+    {
+      id: "sav_synth_2",
+      filename: "ClerkB_OYSHIA_Jan.sav",
+      sizeBytes: 194560,
+      header: "$FL2 (Valid SPSS)",
+      clerkIdentity: "Clerk B — District Annex",
+      recordCount: 305,
+      variableCount: 27,
+      importStatus: "PARSED",
+      schemaStatus: "2 Drift Issues",
+      reconciliationStatus: "Needs Review",
+      importedAt: new Date().toISOString()
+    },
+    {
+      id: "sav_synth_3",
+      filename: "ClerkC_OYSHIA_Jan.sav",
+      sizeBytes: 162880,
+      header: "$FL2 (Valid SPSS)",
+      clerkIdentity: "Clerk C — Mobile Outreach",
+      recordCount: 218,
+      variableCount: 29,
+      importStatus: "PARSED",
+      schemaStatus: "1 Unmapped Var",
+      reconciliationStatus: "Needs Review",
+      importedAt: new Date().toISOString()
+    }
+  ];
+
+  appState.merger.variableMappings = [
+    {
+      id: "vm_1",
+      sourceVar: "Sex",
+      sourceFile: "ClerkA_OYSHIA_Jan.sav",
+      sourceType: "Numeric (F8.0)",
+      sourceMeasure: "Nominal",
+      sourceLabel: "Patient biological sex",
+      matchClass: "EXACT_MATCH",
+      rationale: "Identical variable name, numeric storage width, and nominal scale.",
+      affectedRecords: 412,
+      targetVar: "Sex",
+      targetOptions: ["Sex", "Patient_Sex", "Gender_Code"],
+      targetSpec: "Numeric (F8.0) · Nominal",
+      approved: true,
+      excluded: false,
+      excludeReason: ""
+    },
+    {
+      id: "vm_2",
+      sourceVar: "treatment2",
+      sourceFile: "ClerkB_OYSHIA_Jan.sav",
+      sourceType: "Numeric (F8.2)",
+      sourceMeasure: "Nominal",
+      sourceLabel: "Secondary prescribed medication",
+      matchClass: "STRONG_SUGGESTION",
+      rationale: "Case-insensitive name match (treatment2 → Treatment2) with identical value domain.",
+      affectedRecords: 305,
+      targetVar: "Treatment2",
+      targetOptions: ["Treatment2", "Treatment1", "Notes_Other"],
+      targetSpec: "Numeric (F8.2) · Nominal",
+      approved: false,
+      excluded: false,
+      excludeReason: ""
+    },
+    {
+      id: "vm_3",
+      sourceVar: "Diag_Primary",
+      sourceFile: "ClerkC_OYSHIA_Jan.sav",
+      sourceType: "Numeric (F8.0)",
+      sourceMeasure: "Nominal",
+      sourceLabel: "Primary clinical diagnosis code",
+      matchClass: "POSSIBLE_MATCH",
+      rationale: "Semantic label overlap with master Diagnosis1 (0.84 token similarity).",
+      affectedRecords: 218,
+      targetVar: "Diagnosis1",
+      targetOptions: ["Diagnosis1", "Diagnosis2", "Diag_Primary"],
+      targetSpec: "Numeric (F8.2) · Nominal",
+      approved: false,
+      excluded: false,
+      excludeReason: ""
+    },
+    {
+      id: "vm_4",
+      sourceVar: "Outreach_Van_ID",
+      sourceFile: "ClerkC_OYSHIA_Jan.sav",
+      sourceType: "String (A16)",
+      sourceMeasure: "Nominal",
+      sourceLabel: "Mobile unit identifier",
+      matchClass: "NO_MATCH",
+      rationale: "No corresponding variable in master template; create new variable or exclude.",
+      affectedRecords: 218,
+      targetVar: "Outreach_Van_ID",
+      targetOptions: ["Outreach_Van_ID", "Facility_Code"],
+      targetSpec: "String (A16) · Nominal",
+      approved: false,
+      excluded: false,
+      excludeReason: ""
+    },
+    {
+      id: "vm_5",
+      sourceVar: "Age_Years",
+      sourceFile: "ClerkB_OYSHIA_Jan.sav",
+      sourceType: "String (A8)",
+      sourceMeasure: "Nominal",
+      sourceLabel: "Age recorded as text",
+      matchClass: "INCOMPATIBLE",
+      rationale: "String type (A8) cannot merge directly into master Numeric (F8.0) Age without coercion.",
+      affectedRecords: 305,
+      targetVar: "Age",
+      targetOptions: ["Age", "Age_Text_Raw"],
+      targetSpec: "Numeric (F8.0) · Scale",
+      approved: false,
+      excluded: false,
+      excludeReason: ""
+    }
+  ];
+
+  appState.merger.codebookMappings = [
+    {
+      id: "cb_1",
+      sourceClerk: "Clerk B",
+      variableName: "Sex",
+      sourceCode: "0",
+      sourceLabel: "Male",
+      masterCode: "1",
+      masterLabel: "Male",
+      affectedRecords: 142,
+      rationale: "Clerk B coded 0=Male instead of Master 1=Male; remap required to avoid collision.",
+      hasCollision: true,
+      approved: false
+    },
+    {
+      id: "cb_2",
+      sourceClerk: "Clerk B",
+      variableName: "Sex",
+      sourceCode: "1",
+      sourceLabel: "Female",
+      masterCode: "2",
+      masterLabel: "Female",
+      affectedRecords: 163,
+      rationale: "Clerk B value 1 collides with Master 1=Male; remap 1→2 preserves Female classification.",
+      hasCollision: true,
+      approved: false
+    },
+    {
+      id: "cb_3",
+      sourceClerk: "Clerk C",
+      variableName: "Diagnosis1",
+      sourceCode: "265",
+      sourceLabel: "Costochondritis",
+      masterCode: "266.0",
+      masterLabel: "Costochondritis (Musculoskeletal)",
+      affectedRecords: 19,
+      rationale: "Aligned to official OYSHIA master diagnosis codebook entry 266.0.",
+      hasCollision: false,
+      approved: true
+    }
+  ];
+
+  appState.merger.conflicts = [
+    {
+      id: "cf_1",
+      severity: "MANDATORY",
+      type: "Value Label Collision",
+      sourceFiles: ["ClerkB_OYSHIA_Jan.sav"],
+      variable: "Sex",
+      affectedRecords: 305,
+      recommendedResolution: "Approve 0→1 (Male) and 1→2 (Female) codebook remap before merge.",
+      status: "UNRESOLVED",
+      targetTab: "codebook",
+      linkedId: "cb_1"
+    },
+    {
+      id: "cf_2",
+      severity: "MANDATORY",
+      type: "Storage Type Mismatch",
+      sourceFiles: ["ClerkB_OYSHIA_Jan.sav"],
+      variable: "Age_Years → Age",
+      affectedRecords: 305,
+      recommendedResolution: "Confirm numeric coercion to F8.0 or route to Age_Text_Raw.",
+      status: "UNRESOLVED",
+      targetTab: "variables",
+      linkedId: "vm_5"
+    },
+    {
+      id: "cf_3",
+      severity: "WARNING",
+      type: "Case / Naming Drift",
+      sourceFiles: ["ClerkB_OYSHIA_Jan.sav"],
+      variable: "treatment2 → Treatment2",
+      affectedRecords: 305,
+      recommendedResolution: "Accept STRONG_SUGGESTION alignment to Treatment2.",
+      status: "UNRESOLVED",
+      targetTab: "variables",
+      linkedId: "vm_2"
+    }
+  ];
+
+  appState.merger.duplicateCandidatesCount = 3;
+
   renderAll();
   showToast("Loaded isolated synthetic test fixture.");
+}
+
+function bindMergerControls() {
+  document.querySelectorAll(".mm-step-pill").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      appState.merger.activeSubTab = btn.getAttribute("data-mm-tab");
+      renderAll();
+    });
+  });
+
+  document.getElementById("mm-conf-sev").addEventListener("change", (e) => {
+    appState.merger.conflictFilters.severity = e.target.value;
+    renderAll();
+  });
+
+  document.getElementById("mm-conf-type").addEventListener("change", (e) => {
+    appState.merger.conflictFilters.type = e.target.value;
+    renderAll();
+  });
+
+  const dropzone = document.getElementById("mm-dropzone");
+  const fileInput = document.getElementById("mm-file-input");
+
+  dropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropzone.classList.add("drag-over");
+  });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag-over"));
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("drag-over");
+    if (e.dataTransfer?.files?.length) handleMergerSavFiles(Array.from(e.dataTransfer.files));
+  });
+  fileInput.addEventListener("change", (e) => {
+    if (e.target.files?.length) {
+      handleMergerSavFiles(Array.from(e.target.files));
+      fileInput.value = "";
+    }
+  });
+}
+
+async function handleMergerSavFiles(files) {
+  const clerkName = document.getElementById("mm-clerk-input").value.trim();
+  const validSavFiles = [];
+
+  for (const file of files) {
+    const check = await validateSavMagicBytes(file);
+    if (!check.valid) {
+      showToast(`${file.name}: ${check.error}`);
+      continue;
+    }
+
+    const srcObj = {
+      id: `sav_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      file,
+      filename: file.name,
+      sizeBytes: file.size,
+      header: check.header,
+      clerkIdentity: clerkName || file.name.replace(/\.sav$/i, ""),
+      recordCount: null,
+      variableCount: null,
+      importStatus: "LOCAL_SESSION",
+      schemaStatus: "Pending pyreadstat",
+      reconciliationStatus: "Awaiting Inspection",
+      importedAt: new Date().toISOString()
+    };
+
+    appState.merger.sources.unshift(srcObj);
+    validSavFiles.push(srcObj);
+  }
+
+  renderAll();
+
+  if (validSavFiles.length > 0) {
+    const res = await inspectMergeFilesOnBackend(
+      appState.activeProjectId,
+      validSavFiles.map((s) => s.file)
+    );
+    if (!res.ok) {
+      showToast(res.message);
+    }
+  }
 }

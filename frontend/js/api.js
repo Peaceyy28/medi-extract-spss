@@ -160,3 +160,27 @@ export async function executeMasterMergeOnBackend(projectId, payload) {
     return { ok: false, reason: "NETWORK_ERROR", message: err.message };
   }
 }
+
+export async function runQualityValidationOnBackend(projectId, payload) {
+  if (!apiState.connected) {
+    return {
+      ok: false,
+      reason: "BACKEND_UNAVAILABLE",
+      message: "Backend validation engine (/api/v1/projects/{id}/validate) is offline; running client-side rules on loaded session records only."
+    };
+  }
+
+  try {
+    const res = await fetch(`${apiState.baseUrl}/projects/${encodeURIComponent(projectId)}/validate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      return { ok: false, reason: "HTTP_ERROR", message: `Server returned HTTP ${res.status}` };
+    }
+    return { ok: true, data: await res.json() };
+  } catch (err) {
+    return { ok: false, reason: "NETWORK_ERROR", message: err.message };
+  }
+}

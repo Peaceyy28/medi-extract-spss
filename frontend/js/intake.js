@@ -107,7 +107,9 @@ export function renderIntakeOverview(state) {
         ? "Evidence Split"
         : state.view === "merger"
           ? "Master Merger"
-          : "Paper Intake";
+          : state.view === "analytics"
+            ? "Quality Observatory"
+            : "Paper Intake";
   document.getElementById("crumb-project").textContent = project ? project.name : "No Project";
   document.getElementById("crumb-batch").textContent = batch
     ? `${screenLabel} · ${batch.reference}`

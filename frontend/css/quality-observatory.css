@@ -1,0 +1,333 @@
+/* ==========================================================================
+   MediExtract — Screen 05: The Quality Observatory
+   Visual Identity: White (#FFFFFF), Electric Blue (#477FF5),
+   Deep Forest (#183B35), Signal Lime (#C5E86C), Coral (#FF785E), Ink (#20252D)
+   ========================================================================== */
+
+.qo-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.14);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.qo-status-pill.running {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+.qo-status-pill.attention {
+  background: #FFF3F0;
+  color: #8A2414;
+  border-color: #F6B2A5;
+}
+
+.qo-status-pill.completed {
+  background: var(--accent-lime);
+  color: var(--bg-forest);
+  border-color: var(--accent-lime);
+}
+
+/* Validation Rules & Controls Strip */
+.qo-controls-panel {
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+
+.qo-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.qo-rule-card {
+  border: 1px solid var(--rule-hairline);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  background: var(--bg-soft);
+}
+
+.qo-rule-card label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.qo-rule-card p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ink-secondary);
+  line-height: 1.45;
+}
+
+/* Quality Landscape: Category Cards + Field-Quality Map */
+.qo-landscape-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.qo-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.qo-cat-card {
+  text-align: left;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  background: #FFFFFF;
+  padding: 12px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.qo-cat-card:hover {
+  border-color: var(--accent-blue);
+  background: #F8FAFF;
+}
+
+.qo-cat-card.active {
+  border-color: var(--accent-blue);
+  background: var(--bg-light-blue);
+  box-shadow: 0 0 0 1px var(--accent-blue);
+}
+
+.qo-cat-count {
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.1;
+  color: var(--ink-main);
+  margin-top: 4px;
+}
+
+.qo-cat-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.qo-cat-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-blue);
+}
+
+.qo-cat-bar-fill.coral {
+  background: var(--accent-coral);
+}
+
+.qo-cat-bar-fill.forest {
+  background: var(--bg-forest);
+}
+
+.qo-field-map {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.qo-field-row {
+  display: grid;
+  grid-template-columns: 128px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule-hairline);
+  border-radius: var(--radius-sm);
+  background: #FFFFFF;
+  cursor: pointer;
+  text-align: left;
+}
+
+.qo-field-row:hover {
+  border-color: var(--accent-blue);
+}
+
+.qo-field-row.active {
+  border-color: var(--accent-blue);
+  background: var(--bg-light-blue);
+}
+
+.qo-field-dots {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.qo-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.qo-dot.error {
+  background: var(--accent-coral);
+}
+
+.qo-dot.warning {
+  background: #E09F1F;
+}
+
+.qo-dot.clinical {
+  background: var(--accent-blue);
+}
+
+.qo-dot.resolved {
+  background: var(--bg-forest);
+  opacity: 0.45;
+}
+
+/* Resolution Progress Strip */
+.qo-progress-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+/* Split: Issue Register (Left) + Investigation Panel (Right) */
+.qo-split {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 18px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.qo-sev-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.qo-sev-error {
+  background: #FFF0EC;
+  color: #8A2414;
+  border: 1px solid #F6B2A5;
+}
+
+.qo-sev-warning {
+  background: #FEF7E6;
+  color: #7D5106;
+  border: 1px solid #F2D08A;
+}
+
+.qo-sev-clinical {
+  background: var(--bg-light-blue);
+  color: #1A44A8;
+  border: 1px solid #BDD2FC;
+}
+
+.qo-issue-row {
+  cursor: pointer;
+}
+
+.qo-issue-row.selected {
+  background: #F2F6FF;
+}
+
+/* Investigation Panel */
+.qo-inspector {
+  position: sticky;
+  top: 76px;
+  padding: 18px 20px;
+}
+
+.qo-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  border: 1px solid var(--rule-hairline);
+  font-size: 12.5px;
+}
+
+.qo-meta-grid span.mono-tag {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.qo-rx-notice {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-light-blue);
+  border: 1px solid #BDD2FC;
+  font-size: 12.5px;
+  color: var(--ink-main);
+}
+
+.qo-action-box {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule-hairline);
+  display: grid;
+  gap: 10px;
+}
+
+/* Dataset Readiness Gate */
+.qo-readiness-card {
+  padding: 20px 22px;
+  border: 1.5px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  background: #FFFFFF;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.qo-readiness-card.ready {
+  border-color: var(--bg-forest);
+  background: #F6FBF8;
+}
+
+@media (max-width: 1080px) {
+  .qo-rules-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .qo-landscape-grid,
+  .qo-split {
+    grid-template-columns: 1fr;
+  }
+  .qo-inspector {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .qo-rules-grid,
+  .qo-cat-grid,
+  .qo-progress-strip,
+  .qo-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}

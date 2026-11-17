@@ -8,11 +8,13 @@ import {
   uploadFilesToBackend,
   submitDecisionToBackend,
   inspectMergeFilesOnBackend,
-  executeMasterMergeOnBackend
+  executeMasterMergeOnBackend,
+  runQualityValidationOnBackend
 } from "./api.js";
 import { validateUploadFile, inspectLocalFile } from "./upload.js";
 import { renderProjectIndex } from "./project-index.js";
 import { validateSavMagicBytes, renderMergerScreen } from "./merger.js";
+import { runQualityValidation, renderObservatoryScreen } from "./observatory.js";
 import {
   generateBatchReference,
   generateDocumentReference,
@@ -85,7 +87,23 @@ const appState = {
     searchQuery: "",
     sortBy: "SEVERITY_DESC"
   },
-  pagination: { page: 1 }
+  pagination: { page: 1 },
+  observatory: {
+    validationStatus: "NOT_STARTED",
+    records: [],
+    issues: [],
+    selectedIssueId: null,
+    supervisorApproved: false,
+    approvedAt: null,
+    filters: {
+      statusTab: "ALL",
+      category: "ALL",
+      field: "ALL",
+      sortBy: "SEV_DESC",
+      search: ""
+    },
+    pagination: { page: 1 }
+  }
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -95,6 +113,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   bindIntakeUploadControls();
   bindIntakeLedgerControls();
   bindMergerControls();
+  bindObservatoryControls();
   bindQueueFilters();
   bindKeyboardShortcuts();
   bindSyntheticDevPreview();
@@ -793,6 +812,52 @@ function renderAll() {
     }
   });
 
+  renderObservatoryScreen(appState, {
+    onSelectIssue: (issueId) => {
+      appState.observatory.selectedIssueId = issueId;
+      renderAll();
+    },
+    onToggleCategory: (catKey) => {
+      appState.observatory.filters.category =
+        appState.observatory.filters.category === catKey ? "ALL" : catKey;
+      appState.observatory.pagination.page = 1;
+      renderAll();
+    },
+    onToggleField: (fld) => {
+      appState.observatory.filters.field =
+        appState.observatory.filters.field === fld ? "ALL" : fld;
+      appState.observatory.pagination.page = 1;
+      renderAll();
+    },
+    onJumpToEvidence: (linkedIssueId) => {
+      openIssueInSplit(linkedIssueId);
+    },
+    onResolveIssue: (issueId, newStatus, payload) => {
+      const iss = appState.observatory.issues.find((i) => i.id === issueId);
+      if (!iss) return;
+      iss.resolutionStatus = newStatus;
+      if (payload.correctedValue !== undefined) {
+        iss.correctedValue = payload.correctedValue;
+      }
+      iss.auditHistory = iss.auditHistory || [];
+      iss.auditHistory.unshift({
+        timestamp: new Date().toLocaleTimeString(),
+        reviewer: "M&E Supervisor (Local Session)",
+        action: payload.actionLabel,
+        reason: payload.reason || ""
+      });
+      appState.observatory.supervisorApproved = false;
+      renderAll();
+      showToast(`${iss.ruleId}: ${payload.actionLabel}`);
+    },
+    onApproveDataset: () => {
+      appState.observatory.supervisorApproved = true;
+      appState.observatory.approvedAt = new Date().toLocaleTimeString();
+      renderAll();
+      showToast("Dataset approved for analysis with full audit trail.");
+    }
+  });
+
   document.getElementById("nav-split").disabled = !appState.activeIssueId && !appState.activeDirectDocId;
 }
 
@@ -993,6 +1058,12 @@ function exitSyntheticMode() {
   appState.merger.codebookMappings = [];
   appState.merger.conflicts = [];
   appState.merger.duplicateCandidatesCount = 0;
+  appState.observatory.validationStatus = "NOT_STARTED";
+  appState.observatory.records = [];
+  appState.observatory.issues = [];
+  appState.observatory.selectedIssueId = null;
+  appState.observatory.supervisorApproved = false;
+  appState.observatory.approvedAt = null;
   appState.merger.activeSubTab = "sources";
   document.getElementById("synthetic-banner").hidden = true;
   document.getElementById("btn-toggle-synthetic").textContent = "Dev Preview: Synthetic Fixture";
@@ -1345,6 +1416,75 @@ function loadSyntheticDevFixture() {
 
   appState.merger.duplicateCandidatesCount = 3;
 
+  appState.observatory.validationStatus = "NOT_STARTED";
+  appState.observatory.issues = [];
+  appState.observatory.selectedIssueId = null;
+  appState.observatory.supervisorApproved = false;
+  appState.observatory.records = [
+    {
+      Respondent_ID: "SYNTH-1001",
+      Age: 142,
+      Sex: "Female",
+      Diagnosis1: "I10",
+      Treatment1: "Amoxicillin",
+      Facility_Code: "PHC-01",
+      Encounter_Date: "2026-02-04",
+      sourceFile: "ClerkA_OYSHIA_Jan.sav",
+      sourceClerk: "Clerk A — Regional PHC",
+      originalRowNumber: 14,
+      linkedIssueId: "iss_1"
+    },
+    {
+      Respondent_ID: "SYNTH-1002",
+      Age: 29,
+      Sex: "Male",
+      Diagnosis1: "O80",
+      Treatment1: "Paracetamol",
+      Facility_Code: "PHC-02",
+      Encounter_Date: "2026-02-05",
+      sourceFile: "ClerkB_OYSHIA_Jan.sav",
+      sourceClerk: "Clerk B — District Annex",
+      originalRowNumber: 38
+    },
+    {
+      Respondent_ID: "SYNTH-1003",
+      Age: 44,
+      Sex: "",
+      Diagnosis1: "J06",
+      Treatment1: "Insulin",
+      Facility_Code: "PHC-01",
+      Encounter_Date: "2026-02-06",
+      sourceFile: "ClerkB_OYSHIA_Jan.sav",
+      sourceClerk: "Clerk B — District Annex",
+      originalRowNumber: 52,
+      linkedIssueId: "iss_2"
+    },
+    {
+      Respondent_ID: "SYNTH-1004",
+      Age: 36,
+      Sex: "Female",
+      Diagnosis1: "UNMAPPED-999",
+      Treatment1: "Diclofenac",
+      Facility_Code: "PHC-03",
+      Encounter_Date: "2026-02-07",
+      sourceFile: "ClerkC_OYSHIA_Jan.sav",
+      sourceClerk: "Clerk C — Mobile Outreach",
+      originalRowNumber: 71
+    },
+    {
+      Respondent_ID: "SYNTH-1001",
+      Age: 48,
+      Sex: "Female",
+      Diagnosis1: "I10",
+      Treatment1: "Amlodipine",
+      Facility_Code: "PHC-01",
+      Encounter_Date: "2026-02-04",
+      sourceFile: "ClerkC_OYSHIA_Jan.sav",
+      sourceClerk: "Clerk C — Mobile Outreach",
+      originalRowNumber: 89
+    }
+  ];
+
   renderAll();
   showToast("Loaded isolated synthetic test fixture.");
 }
@@ -1429,4 +1569,84 @@ async function handleMergerSavFiles(files) {
       showToast(res.message);
     }
   }
+}
+
+function bindObservatoryControls() {
+  document.getElementById("qo-btn-back-prev").addEventListener("click", () => switchView("queue"));
+
+  document.getElementById("qo-btn-run-validation").addEventListener("click", async () => {
+    const qo = appState.observatory;
+    if (qo.records.length === 0 && !appState.backendConnected) {
+      showToast("No dataset records loaded. Connect the FastAPI backend or load Synthetic Preview.");
+      return;
+    }
+
+    const rulesConfig = {
+      value: document.getElementById("qo-rule-value").checked,
+      logical: document.getElementById("qo-rule-logical").checked,
+      duplicates: document.getElementById("qo-rule-duplicates").checked,
+      prescription: document.getElementById("qo-rule-rx").checked
+    };
+
+    qo.validationStatus = "RUNNING";
+    renderAll();
+
+    const backendRes = await runQualityValidationOnBackend(appState.activeProjectId, {
+      batchId: appState.activeBatchId,
+      rules: rulesConfig
+    });
+
+    if (backendRes.ok && Array.isArray(backendRes.data?.issues)) {
+      qo.issues = backendRes.data.issues;
+      qo.validationStatus = "COMPLETED";
+    } else {
+      qo.issues = runQualityValidation(qo.records, rulesConfig);
+      qo.validationStatus = "COMPLETED";
+    }
+
+    qo.selectedIssueId = qo.issues[0]?.id || null;
+    qo.supervisorApproved = false;
+    qo.pagination.page = 1;
+    renderAll();
+    showToast(`Validation completed: ${qo.issues.length} issue(s) identified across ${qo.records.length} record(s).`);
+  });
+
+  document.querySelectorAll("[data-qo-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("[data-qo-tab]").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      appState.observatory.filters.statusTab = btn.getAttribute("data-qo-tab");
+      appState.observatory.pagination.page = 1;
+      renderAll();
+    });
+  });
+
+  document.getElementById("qo-sort").addEventListener("change", (e) => {
+    appState.observatory.filters.sortBy = e.target.value;
+    appState.observatory.pagination.page = 1;
+    renderAll();
+  });
+
+  document.getElementById("qo-search").addEventListener("input", (e) => {
+    appState.observatory.filters.search = e.target.value;
+    appState.observatory.pagination.page = 1;
+    renderAll();
+  });
+
+  document.getElementById("qo-btn-clear-landscape").addEventListener("click", () => {
+    appState.observatory.filters.category = "ALL";
+    appState.observatory.filters.field = "ALL";
+    appState.observatory.pagination.page = 1;
+    renderAll();
+  });
+
+  document.getElementById("qo-prev-page").addEventListener("click", () => {
+    appState.observatory.pagination.page = Math.max(1, appState.observatory.pagination.page - 1);
+    renderAll();
+  });
+
+  document.getElementById("qo-next-page").addEventListener("click", () => {
+    appState.observatory.pagination.page += 1;
+    renderAll();
+  });
 }

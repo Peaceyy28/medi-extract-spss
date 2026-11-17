@@ -1,0 +1,53 @@
+/* ==========================================================================
+   MediExtract — The Evidence Lab Design Tokens
+   Palette: Archive Paper (#F3F0E8), Clean Sheet (#FBFAF6), Carbon Ink (#202824),
+            Deep Graphite (#17201D), Oxide Red (#B9553D), Instrument Amber (#D5A34E),
+            Verified Green (#477660), Technical Grey (#858B83)
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --bg-archive: #F3F0E8;
+  --bg-sheet: #FBFAF6;
+  --bg-sheet-alt: #EAE6DC;
+  --bg-graphite: #17201D;
+  --bg-graphite-elevated: #202C28;
+
+  /* Ink & Rules */
+  --ink-carbon: #202824;
+  --ink-secondary: #48504B;
+  --ink-grey: #858B83;
+  --ink-on-dark: #F3F0E8;
+  --ink-on-dark-muted: #A4ABA4;
+
+  --rule-hairline: #DCD7CA;
+  --rule-strong: #BFC5BC;
+  --rule-dark: #2E3B36;
+
+  /* Semantic Signals (Always paired with icon + text label) */
+  --signal-verified: #477660;
+  --signal-verified-bg: #EBF2EE;
+  --signal-verified-border: #B8CFC3;
+
+  --signal-amber: #D5A34E;
+  --signal-amber-ink: #7A5614;
+  --signal-amber-bg: #FAF3E3;
+  --signal-amber-border: #E8CFA0;
+
+  --signal-oxide: #B9553D;
+  --signal-oxide-bg: #F9ECE9;
+  --signal-oxide-border: #E2B6AB;
+
+  /* Typography */
+  --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  /* Radii & Elevation (Restrained, architectural, no excessive rounding) */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --shadow-sheet: 0 1px 2px rgba(23, 32, 29, 0.05);
+  --shadow-focus: 0 0 0 2px var(--bg-sheet), 0 0 0 4px var(--ink-carbon);
+
+  color-scheme: light;
+}

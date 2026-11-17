@@ -13,10 +13,11 @@
   - [x] Define 9 Core Product Pillars, Big $O$ complexity guarantees, and HCI Humans-First principles.
   - [x] Author stakeholder-ready `docs/PRD.md`, `AGENTS.md`, `DESIGN.md`, and `docs/shared/*`.
 
-- [ ] **P1 — UI/UX Research, Design Tokens & Human-First SPA Shell** (`feat/p1-ui-ux-design-shell`) *(Current Active Phase)*
-  - [ ] Gather UI inspirations, layout references, and color/typography mood boards.
-  - [ ] Lock in master design tokens in `DESIGN.md`.
-  - [ ] Build the 3+1 page frontend shell in `/frontend` with mock fixture loader.
+- [x] **P1 — The Evidence Lab Design System & Evidence Review Workstation** (`feat/p1-ui-ux-design-shell`) *(Batch 1 Complete)*
+  - [x] Lock in **The Evidence Lab** design tokens in `DESIGN.md` (`#F3F0E8`, `#FBFAF6`, `#202824`, `#17201D`, `#B9553D`, `#D5A34E`, `#477660`, `#858B83` + `IBM Plex Sans`, `Newsreader`, `IBM Plex Mono`).
+  - [x] Build genuine JPG/PNG/multi-page PDF upload boundary (`frontend/js/upload.js`) & honest backend API client (`frontend/js/api.js`).
+  - [x] Build paginated, exception-based Batch Review Queue (`frontend/js/queue.js`) with all 5 status views and 7 reason filters.
+  - [x] Build 50/50 Evidence Split Workstation (`frontend/js/evidence-split.js`) with Deep Graphite document viewport (zoom, pan, fit, full-page, page nav, coordinate highlight, missing-source state) and Machine Interpretation (separating OCR Confidence from Codebook Similarity, Confirm/Edit/Flag with audit trail & keyboard shortcuts).
 
 - [ ] **P2 — Dual-Mode Scanner & Ingestion Hub UI** (`feat/p2-scanner-ingestion-hub`)
   - [ ] Build live Scanner & Hot-Folder watch indicator (`C:\EncounterForms\ScanQueue`).

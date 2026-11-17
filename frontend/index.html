@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MediExtract — Evidence Review Workstation</title>
+
+  <!-- Typography: IBM Plex Sans, Newsreader, IBM Plex Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/workstation.css" />
+
+  <!-- Optional PDF.js for canvas page-by-page rendering when online -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
+</head>
+<body>
+  <a href="#main-workstation" class="sr-only">Skip to Evidence Review Workstation</a>
+
+  <!-- Top Workstation Bar -->
+  <header class="topbar">
+    <div class="brand-block">
+      <span class="brand-wordmark">MediExtract</span>
+      <span class="brand-tagline">Every value has a source.</span>
+    </div>
+
+    <nav class="topbar-nav" aria-label="Workstation views">
+      <button type="button" class="nav-tab active" id="nav-queue" data-view="queue">
+        Review Queue
+      </button>
+      <button type="button" class="nav-tab" id="nav-split" data-view="split" disabled>
+        Evidence Split
+      </button>
+    </nav>
+
+    <div class="topbar-meta">
+      <div class="boundary-pill" id="backend-boundary-pill" title="Backend API connection status">
+        <span class="boundary-dot" aria-hidden="true"></span>
+        <span id="backend-boundary-text">Backend API: Checking…</span>
+      </div>
+
+      <button type="button" class="btn btn-sm" id="btn-toggle-synthetic" title="Load isolated synthetic test fixture to preview all review states without a live backend">
+        Dev Preview: Synthetic Fixture
+      </button>
+    </div>
+  </header>
+
+  <!-- Isolated Synthetic Mode Disclosure Banner (Hidden by default) -->
+  <div class="synthetic-banner" id="synthetic-banner" hidden>
+    <span>
+      <strong>SYNTHETIC DEVELOPMENT PREVIEW ACTIVE:</strong> Displaying non-clinical, synthetic test records to preview workstation states. These are not real uploaded clinic documents.
+    </span>
+    <button type="button" class="btn btn-sm" id="btn-exit-synthetic">Clear Synthetic Preview</button>
+  </div>
+
+  <!-- Main Workstation Container -->
+  <main id="main-workstation" class="workspace-container">
+
+    <!-- ====================================================================
+         VIEW 1: BATCH UPLOAD & EXCEPTION-BASED REVIEW QUEUE
+         ==================================================================== -->
+    <section id="view-queue" aria-label="Batch Review Queue">
+
+      <!-- Batch Summary & Progress Visualization -->
+      <div class="panel batch-strip" id="batch-summary-panel">
+        <div class="batch-meta-row">
+          <div>
+            <span class="mono-tag" id="batch-project-label">PROJECT: UNASSIGNED · LOCAL WORKSTATION</span>
+            <h1 class="batch-heading" id="batch-title">No Active Batch</h1>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <span class="mono-tag" id="batch-timestamp"></span>
+            <button type="button" class="btn btn-primary" id="btn-open-next-issue" disabled>
+              Open Next Unresolved Issue →
+            </button>
+          </div>
+        </div>
+
+        <div class="batch-metrics" aria-label="Batch page and review counts">
+          <div class="metric-cell">
+            <div class="metric-label">Total Pages</div>
+            <div class="metric-value" id="m-total">0</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label">Processed</div>
+            <div class="metric-value" id="m-processed">0</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label">Awaiting Review</div>
+            <div class="metric-value" id="m-awaiting" style="color:var(--signal-amber-ink);">0</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label">Verified</div>
+            <div class="metric-value" id="m-verified" style="color:var(--signal-verified);">0</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label">Flagged</div>
+            <div class="metric-value" id="m-flagged" style="color:var(--signal-amber-ink);">0</div>
+          </div>
+          <div class="metric-cell">
+            <div class="metric-label">Failed</div>
+            <div class="metric-value" id="m-failed" style="color:var(--signal-oxide);">0</div>
+          </div>
+        </div>
+
+        <div class="progress-bar-wrap">
+          <span class="mono-tag" id="progress-label">0% reviewed</span>
+          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="batch-progressbar">
+            <div class="seg-verified" id="seg-verified" style="width:0%"></div>
+            <div class="seg-review" id="seg-review" style="width:0%"></div>
+            <div class="seg-failed" id="seg-failed" style="width:0%"></div>
+            <div class="seg-pending" id="seg-pending" style="width:0%"></div>
+          </div>
+          <span class="mono-tag" id="progress-legend">Verified · Awaiting · Failed</span>
+        </div>
+      </div>
+
+      <!-- Document Upload Intake -->
+      <div class="panel upload-zone">
+        <div class="dropzone" id="upload-dropzone" tabindex="0" role="region" aria-label="Upload scanned encounter forms">
+          <p style="margin:0 0 6px; font-weight:600; font-size:15px;">
+            Upload scanned encounter forms (JPG, PNG, or multi-page PDF)
+          </p>
+          <p style="margin:0 0 14px; color:var(--ink-secondary); font-size:13px;">
+            Drag and drop files here, or select multiple files from your computer. All uploaded documents remain linked to their extracted fields.
+          </p>
+          <div style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">
+            <label class="btn btn-primary" for="file-upload-input">
+              Select Files to Upload
+            </label>
+            <input type="file" id="file-upload-input" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" multiple class="sr-only" />
+          </div>
+        </div>
+
+        <!-- Genuine Uploaded Files List -->
+        <div class="upload-list" id="upload-file-list" hidden></div>
+      </div>
+
+      <!-- Review Queue Panel -->
+      <div class="panel">
+        <div class="queue-controls">
+          <!-- Status Views -->
+          <div class="view-tabs" role="tablist" aria-label="Document status filter">
+            <button type="button" class="filter-tab active" data-status-tab="NEEDS_REVIEW">Needs Review</button>
+            <button type="button" class="filter-tab" data-status-tab="ALL">All Documents</button>
+            <button type="button" class="filter-tab" data-status-tab="VERIFIED">Verified</button>
+            <button type="button" class="filter-tab" data-status-tab="FLAGGED">Flagged</button>
+            <button type="button" class="filter-tab" data-status-tab="PROCESSING_FAILED">Processing Failed</button>
+          </div>
+
+          <!-- Search & Reason Filter -->
+          <div class="queue-inputs">
+            <label for="reason-filter" class="sr-only">Filter by issue reason</label>
+            <select id="reason-filter" class="input-control">
+              <option value="ALL_UNRESOLVED">All unresolved issues</option>
+              <option value="LOW_CONFIDENCE">Low-confidence extraction</option>
+              <option value="UNRECOGNISED_TERM">Unrecognised clinical terms</option>
+              <option value="MISSING_VALUE">Missing or incomplete values</option>
+              <option value="VALIDATION_FAILURE">Validation failures</option>
+              <option value="PROCESSING_FAILURE">Processing failures</option>
+              <option value="FLAGGED">Flagged items</option>
+            </select>
+
+            <label for="queue-search" class="sr-only">Search review queue</label>
+            <input type="search" id="queue-search" class="input-control" placeholder="Search document, field, or text…" />
+          </div>
+        </div>
+
+        <!-- Queue Empty / Complete States -->
+        <div id="queue-empty-state" class="empty-state">
+          <h3>Ready for document upload</h3>
+          <p>
+            No encounter forms have been uploaded to this workstation yet. Upload JPG, PNG, or multi-page PDF files above to begin extraction and exception-based review.
+          </p>
+        </div>
+
+        <!-- Queue Data Table (Paginated) -->
+        <div id="queue-table-container" hidden>
+          <div class="queue-table-wrap">
+            <table class="queue-table">
+              <thead>
+                <tr>
+                  <th>Document ID</th>
+                  <th>Page</th>
+                  <th>Field</th>
+                  <th>Reason for Review</th>
+                  <th>OCR Confidence</th>
+                  <th>Status</th>
+                  <th>Severity</th>
+                  <th style="text-align:right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="queue-tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="pagination-bar">
+            <span class="mono-tag" id="pagination-info">Showing 0–0 of 0</span>
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="btn btn-sm" id="btn-prev-page" disabled>← Prev Page</button>
+              <button type="button" class="btn btn-sm" id="btn-next-page" disabled>Next Page →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ====================================================================
+         VIEW 2: EVIDENCE SPLIT WORKSTATION (LEFT EVIDENCE | RIGHT INTERPRETATION)
+         ==================================================================== -->
+    <section id="view-split" aria-label="Evidence Split Review" hidden>
+
+      <!-- Top Navigation Strip inside Split View -->
+      <div class="evidence-topbar">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-sm" id="btn-back-to-queue">← Back to Queue</button>
+          <span class="mono-tag" id="split-progress-counter">Issue 0 of 0</span>
+          <span class="mono-tag" id="split-doc-ref"></span>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button type="button" class="btn btn-sm" id="btn-prev-issue" title="Previous issue (Left Arrow)">← Prev Issue</button>
+          <button type="button" class="btn btn-sm" id="btn-next-issue" title="Next issue (Right Arrow)">Next Issue →</button>
+        </div>
+      </div>
+
+      <!-- 50 / 50 Equal-Importance Split -->
+      <div class="evidence-split-grid">
+
+        <!-- LEFT: ORIGINAL EVIDENCE (Deep Graphite Instrument Viewport) -->
+        <div class="evidence-viewer-panel">
+          <div class="viewer-toolbar">
+            <div>
+              <span class="mono-tag" style="color:var(--ink-on-dark);" id="viewer-doc-name">No document selected</span>
+              <span class="mono-tag" style="color:var(--ink-on-dark-muted); margin-left:8px;" id="viewer-page-label"></span>
+            </div>
+
+            <div style="display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
+              <button type="button" class="btn-instrument" id="btn-page-prev" title="Previous page in document">‹ Page</button>
+              <button type="button" class="btn-instrument" id="btn-page-next" title="Next page in document">Page ›</button>
+              <button type="button" class="btn-instrument" id="btn-zoom-out" title="Zoom out (-)">−</button>
+              <span class="mono-tag" style="color:var(--ink-on-dark); min-width:44px; text-align:center;" id="zoom-readout">100%</span>
+              <button type="button" class="btn-instrument" id="btn-zoom-in" title="Zoom in (+)">+</button>
+              <button type="button" class="btn-instrument" id="btn-fit-page">Fit</button>
+              <button type="button" class="btn-instrument" id="btn-full-page">Full Page</button>
+            </div>
+          </div>
+
+          <div class="viewer-stage" id="viewer-stage" tabindex="0" aria-label="Uploaded document page viewport. Drag to pan.">
+            <!-- Rendered Document + Highlight Box -->
+            <div class="viewer-canvas-wrap" id="viewer-canvas-wrap" hidden>
+              <img id="viewer-img" alt="Uploaded encounter form page" hidden />
+              <canvas id="viewer-pdf-canvas" hidden></canvas>
+              <div class="region-highlight" id="region-highlight" hidden>
+                <span class="region-tag" id="region-tag">Selected Field</span>
+              </div>
+            </div>
+
+            <!-- Honest Missing-Source State -->
+            <div class="missing-source-box" id="missing-source-box" hidden>
+              <p style="font-weight:600; color:var(--ink-on-dark); margin:0 0 6px;">Original Document Unavailable</p>
+              <p style="margin:0; font-size:13px;" id="missing-source-reason">
+                The source file for this record is not loaded in this session or could not be retrieved from storage. MediExtract does not display invented previews.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: MACHINE INTERPRETATION & HUMAN DECISION -->
+        <div class="panel interpretation-panel">
+          <div class="panel-header">
+            <div>
+              <span class="mono-tag" id="interp-source-ref">SOURCE: —</span>
+              <h2 class="panel-title" id="interp-field-name" style="margin-top:2px;">Field Name</h2>
+            </div>
+            <span class="status-badge" id="interp-status-badge">—</span>
+          </div>
+
+          <div class="interp-body">
+            <!-- Extracted Text -->
+            <div class="extracted-box">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="mono-tag">MACHINE EXTRACTED TEXT (ORIGINAL PRESERVED)</span>
+                <span class="mono-tag" id="interp-orig-tag"></span>
+              </div>
+              <div class="extracted-value" id="interp-extracted-text">—</div>
+            </div>
+
+            <!-- Separate OCR Confidence vs Codebook Similarity -->
+            <div class="metric-pair">
+              <div class="metric-box">
+                <div class="metric-box-label">OCR Confidence</div>
+                <div class="metric-box-val" id="interp-ocr-conf">—</div>
+                <div style="font-size:12px; color:var(--ink-secondary); margin-top:2px;">
+                  Legibility of ink characters
+                </div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-box-label">Codebook Similarity</div>
+                <div class="metric-box-val" id="interp-cb-sim">—</div>
+                <div style="font-size:12px; color:var(--ink-secondary); margin-top:2px;">
+                  Semantic match to standard list
+                </div>
+              </div>
+            </div>
+
+            <!-- Suggested Codebook Value -->
+            <div style="border:1px solid var(--rule-hairline); border-radius:var(--radius-sm); padding:10px 12px;">
+              <div class="mono-tag">SUGGESTED CODEBOOK MAPPING</div>
+              <div style="font-weight:600; margin-top:3px;" id="interp-codebook-val">Not applicable for this field</div>
+            </div>
+
+            <!-- Validation Information -->
+            <div class="validation-notice" id="interp-validation-box" hidden>
+              <strong id="interp-validation-title">Validation Note:</strong>
+              <span id="interp-validation-msg"></span>
+            </div>
+
+            <!-- Edit Correction Drawer (Shown when clicking Edit / E) -->
+            <div class="edit-drawer" id="edit-drawer" hidden>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong style="font-size:13px;">Edit &amp; Record Correction</strong>
+                <span class="mono-tag">Original preserved in audit log</span>
+              </div>
+
+              <div>
+                <label for="edit-text-input" class="mono-tag" style="display:block; margin-bottom:4px;">Corrected Extracted Text</label>
+                <input type="text" id="edit-text-input" class="input-control" style="width:100%;" />
+              </div>
+
+              <div id="edit-codebook-group">
+                <label for="edit-codebook-select" class="mono-tag" style="display:block; margin-bottom:4px;">Codebook Value</label>
+                <select id="edit-codebook-select" class="input-control" style="width:100%;"></select>
+              </div>
+
+              <div style="display:flex; gap:14px; flex-wrap:wrap; font-size:12.5px;">
+                <label style="display:flex; align-items:center; gap:5px;">
+                  <input type="checkbox" id="chk-unreadable" /> Handwriting unreadable
+                </label>
+                <label style="display:flex; align-items:center; gap:5px;">
+                  <input type="checkbox" id="chk-unrecognised" /> Term unrecognised in codebook
+                </label>
+              </div>
+
+              <div>
+                <label for="edit-note-input" class="mono-tag" style="display:block; margin-bottom:4px;">Reviewer Note (Optional)</label>
+                <input type="text" id="edit-note-input" class="input-control" style="width:100%;" placeholder="Reason for correction or flag…" />
+              </div>
+
+              <div style="display:flex; gap:8px; justify-content:flex-end;">
+                <button type="button" class="btn btn-sm" id="btn-cancel-edit">Cancel</button>
+                <button type="button" class="btn btn-sm btn-verified" id="btn-save-edit">Save Correction &amp; Continue</button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <!-- Human Decision Bar -->
+            <div class="decision-bar">
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" class="btn btn-verified" id="btn-confirm-val" title="Confirm value (Enter)">
+                  ✓ Confirm Value
+                </button>
+                <button type="button" class="btn btn-amber" id="btn-edit-val" title="Edit value (E)">
+                  ✎ Edit Value
+                </button>
+                <button type="button" class="btn btn-oxide" id="btn-flag-val" title="Flag for investigation (F)">
+                  ⚑ Flag
+                </button>
+              </div>
+              <span class="mono-tag" id="decision-backend-note"></span>
+            </div>
+
+            <!-- Audit History -->
+            <div class="audit-log" id="interp-audit-log">
+              <strong>Audit History:</strong> No reviewer actions recorded yet.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Visible Keyboard Shortcut Guide -->
+      <div class="shortcut-bar" aria-label="Keyboard shortcuts">
+        <span><kbd>Enter</kbd> Confirm &amp; Next</span>
+        <span><kbd>E</kbd> Edit</span>
+        <span><kbd>F</kbd> Flag</span>
+        <span><kbd>←</kbd> <kbd>→</kbd> Prev / Next Issue</span>
+        <span><kbd>+</kbd> <kbd>−</kbd> Zoom Document</span>
+        <span style="color:var(--ink-on-dark-muted);">Shortcuts pause automatically while typing</span>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Full-Page Inspection Modal -->
+  <div class="fullpage-modal" id="fullpage-modal" hidden role="dialog" aria-modal="true" aria-label="Full page document view">
+    <div class="fullpage-modal-head">
+      <span class="mono-tag" style="color:var(--ink-on-dark);" id="fullpage-title">Full Page View</span>
+      <button type="button" class="btn-instrument" id="btn-close-fullpage">Close (Esc)</button>
+    </div>
+    <div class="fullpage-modal-body" id="fullpage-body"></div>
+  </div>
+
+  <!-- Feedback Toast -->
+  <div class="feedback-toast" id="feedback-toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

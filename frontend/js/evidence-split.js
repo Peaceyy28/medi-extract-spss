@@ -16,8 +16,20 @@ export const viewerState = {
   startX: 0,
   startY: 0,
   activeItem: null,
-  activeDoc: null
+  activeDoc: null,
+  isDirty: false
 };
+
+export function confirmDiscardUnsavedChanges() {
+  if (!viewerState.isDirty) return true;
+  const ok = confirm("You have unsaved corrections in the Edit drawer. Discard unsaved changes and continue?");
+  if (ok) {
+    viewerState.isDirty = false;
+    const banner = document.getElementById("er-unsaved-banner");
+    if (banner) banner.hidden = true;
+  }
+  return ok;
+}
 
 export function initViewerControls() {
   const stage = document.getElementById("viewer-stage");
@@ -168,25 +180,69 @@ async function renderDocumentPage() {
     imgEl.style.maxWidth = "540px";
   }
 
-  // Highlight region if coordinates exist on this exact page
+  // Highlight region if coordinates exist on this exact page (never invent a bbox)
   if (item?.bbox && viewerState.currentPage === item.pageNumber) {
     regionBox.hidden = false;
     regionBox.style.left = `${item.bbox.xPct}%`;
     regionBox.style.top = `${item.bbox.yPct}%`;
     regionBox.style.width = `${item.bbox.wPct}%`;
     regionBox.style.height = `${item.bbox.hPct}%`;
+    regionBox.classList.remove("er-pulse");
+    void regionBox.offsetWidth;
+    regionBox.classList.add("er-pulse");
     document.getElementById("region-tag").textContent = item.fieldName;
   } else {
     regionBox.hidden = true;
+    regionBox.classList.remove("er-pulse");
   }
+}
+
+function setConfidenceMeter(elId, ratio) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (typeof ratio !== "number") {
+    el.style.width = "0%";
+    el.className = "er-meter-fill";
+    return;
+  }
+  const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  el.style.width = `${pct}%`;
+  const tier = ratio >= 0.85 ? "high" : ratio >= 0.6 ? "medium" : "low";
+  el.className = `er-meter-fill ${tier}`;
 }
 
 function renderInterpretationPanel(item, doc, callbacks) {
   const editDrawer = document.getElementById("edit-drawer");
   editDrawer.hidden = true;
+  viewerState.isDirty = false;
+  const unsavedBanner = document.getElementById("er-unsaved-banner");
+  if (unsavedBanner) unsavedBanner.hidden = true;
+
+  // Animated focus transition on panel body
+  const bodyPanel = document.getElementById("interp-body-panel");
+  if (bodyPanel) {
+    bodyPanel.classList.remove("er-focus-anim");
+    void bodyPanel.offsetWidth;
+    bodyPanel.classList.add("er-focus-anim");
+  }
+
+  const coordsStrip = document.getElementById("er-coords-strip");
+  const coordsText = document.getElementById("er-coords-text");
+  const coordsPage = document.getElementById("er-coords-page");
 
   // Direct local document inspection mode (before backend OCR runs)
   if (!item) {
+    if (coordsStrip) coordsStrip.classList.add("missing");
+    if (coordsText) coordsText.textContent = "Manual inspection mode — no extracted field coordinates";
+    if (coordsPage) coordsPage.textContent = `Page ${viewerState.currentPage} of ${viewerState.totalPages}`;
+    setConfidenceMeter("interp-ocr-meter", null);
+    setConfidenceMeter("interp-cb-meter", null);
+    const techOrig = document.getElementById("tech-orig-val");
+    if (techOrig) techOrig.textContent = "—";
+    const techCoords = document.getElementById("tech-coords-val");
+    if (techCoords) techCoords.textContent = "None (manual view)";
+    const techRule = document.getElementById("tech-rule-val");
+    if (techRule) techRule.textContent = "Awaiting OCR pipeline";
     document.getElementById("interp-source-ref").textContent = `SOURCE: ${doc?.name || "—"}`;
     document.getElementById("interp-field-name").textContent = "Awaiting Backend Extraction";
     document.getElementById("interp-status-badge").outerHTML =
@@ -235,11 +291,37 @@ function renderInterpretationPanel(item, doc, callbacks) {
     typeof item.ocrConfidence === "number"
       ? `${Math.round(item.ocrConfidence * 100)}%`
       : "Unavailable";
+  setConfidenceMeter("interp-ocr-meter", item.ocrConfidence);
 
   document.getElementById("interp-cb-sim").textContent =
     typeof item.codebookSimilarity === "number"
       ? `${Math.round(item.codebookSimilarity * 100)}%`
       : "N/A";
+  setConfidenceMeter("interp-cb-meter", item.codebookSimilarity);
+
+  if (coordsStrip && coordsText && coordsPage) {
+    if (item.bbox) {
+      coordsStrip.classList.remove("missing");
+      coordsText.textContent = `Source BBox [${item.bbox.xPct}%, ${item.bbox.yPct}%, ${item.bbox.wPct}%, ${item.bbox.hPct}%] ⟶ Linked to ${item.fieldName}`;
+    } else {
+      coordsStrip.classList.add("missing");
+      coordsText.textContent = "No visual coordinates available for this field";
+    }
+    coordsPage.textContent = `Page ${item.pageNumber} of ${item.totalPages || viewerState.totalPages}`;
+  }
+
+  const techOrig = document.getElementById("tech-orig-val");
+  if (techOrig) techOrig.textContent = item.extractedText || "(Blank)";
+  const techCoords = document.getElementById("tech-coords-val");
+  if (techCoords) {
+    techCoords.textContent = item.bbox
+      ? `Page ${item.pageNumber} · [${item.bbox.xPct}%, ${item.bbox.yPct}%, ${item.bbox.wPct}%, ${item.bbox.hPct}%]`
+      : `Page ${item.pageNumber} · Unavailable`;
+  }
+  const techRule = document.getElementById("tech-rule-val");
+  if (techRule) techRule.textContent = item.reasonLabel || item.reasonCode || "Standard review";
+  const techReviewer = document.getElementById("tech-reviewer-val");
+  if (techReviewer) techReviewer.textContent = item.lastReviewer || "Records Clerk (Local Session)";
 
   document.getElementById("interp-codebook-val").textContent =
     item.selectedCodebookLabel ||
@@ -297,6 +379,19 @@ export function openEditDrawer(item, callbacks) {
   chkUnreadable.checked = Boolean(item.markedUnreadable);
   chkUnrecognised.checked = Boolean(item.markedUnrecognised);
   noteInput.value = "";
+  viewerState.isDirty = false;
+  const unsavedBanner = document.getElementById("er-unsaved-banner");
+  if (unsavedBanner) unsavedBanner.hidden = true;
+
+  const markDirty = () => {
+    viewerState.isDirty = true;
+    if (unsavedBanner) unsavedBanner.hidden = false;
+  };
+  textInput.oninput = markDirty;
+  cbSelect.onchange = markDirty;
+  chkUnreadable.onchange = markDirty;
+  chkUnrecognised.onchange = markDirty;
+  noteInput.oninput = markDirty;
 
   if (item.codebookOptions && item.codebookOptions.length > 0) {
     cbGroup.hidden = false;
@@ -317,10 +412,14 @@ export function openEditDrawer(item, callbacks) {
   textInput.focus();
 
   document.getElementById("btn-cancel-edit").onclick = () => {
+    viewerState.isDirty = false;
+    if (unsavedBanner) unsavedBanner.hidden = true;
     drawer.hidden = true;
   };
 
   document.getElementById("btn-save-edit").onclick = () => {
+    viewerState.isDirty = false;
+    if (unsavedBanner) unsavedBanner.hidden = true;
     const selectedOpt = cbSelect.selectedOptions[0];
     callbacks.onEditSave(item.id, {
       correctedText: textInput.value.trim(),

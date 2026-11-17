@@ -24,7 +24,14 @@ import {
   openDocumentDetailModal
 } from "./intake.js";
 import { renderBatchSummary, renderQueueTable, filterQueueItems } from "./queue.js";
-import { initViewerControls, renderEvidenceSplit, openEditDrawer, setZoom, viewerState } from "./evidence-split.js";
+import {
+  initViewerControls,
+  renderEvidenceSplit,
+  openEditDrawer,
+  setZoom,
+  viewerState,
+  confirmDiscardUnsavedChanges
+} from "./evidence-split.js";
 
 const appState = {
   view: "home", // "home" | "intake" | "queue" | "split" | "merger" | "analytics" | "settings"
@@ -75,7 +82,8 @@ const appState = {
   filters: {
     statusTab: "NEEDS_REVIEW",
     reasonFilter: "ALL_UNRESOLVED",
-    searchQuery: ""
+    searchQuery: "",
+    sortBy: "SEVERITY_DESC"
   },
   pagination: { page: 1 }
 };
@@ -156,6 +164,9 @@ function bindNavigation() {
 }
 
 function switchView(viewName) {
+  if (appState.view === "split" && viewName !== "split" && !confirmDiscardUnsavedChanges()) {
+    return;
+  }
   appState.view = viewName;
   ["home", "intake", "queue", "split", "merger", "analytics", "settings"].forEach((v) => {
     const el = document.getElementById("view-" + v);
@@ -525,6 +536,63 @@ function bindQueueFilters() {
     appState.pagination.page = 1;
     renderAll();
   });
+
+  document.getElementById("queue-sort").addEventListener("change", (e) => {
+    appState.filters.sortBy = e.target.value;
+    appState.pagination.page = 1;
+    renderAll();
+  });
+
+  document.getElementById("btn-manual-inspect-doc").addEventListener("click", () => {
+    const docId = document.getElementById("er-manual-doc-select").value;
+    const doc = appState.documents.find((d) => d.id === docId);
+    if (doc) openDocumentDirectly(doc);
+  });
+
+  document.getElementById("btn-run-quality-sample").addEventListener("click", runSupervisorQualitySample);
+}
+
+function runSupervisorQualitySample() {
+  const rule = document.getElementById("er-sample-rule").value;
+  const container = document.getElementById("er-sample-results");
+  const verified = appState.queueItems.filter((i) => i.reviewStatus === "VERIFIED");
+
+  if (verified.length === 0) {
+    container.innerHTML = `<span class="mono-tag" style="color:var(--ink-muted);">No verified records available to sample in this batch yet.</span>`;
+    return;
+  }
+
+  let pool = verified;
+  if (rule === "LOW_MARGIN") {
+    pool = verified.filter((i) => typeof i.ocrConfidence === "number" && i.ocrConfidence < 0.95);
+  } else if (rule === "CORRECTED_ONLY") {
+    pool = verified.filter((i) => i.correctedText !== undefined && i.correctedText !== i.extractedText);
+  } else if (rule === "RATE_25") {
+    const take = Math.max(1, Math.ceil(verified.length * 0.25));
+    pool = verified.slice(0, take);
+  }
+
+  if (pool.length === 0) {
+    container.innerHTML = `<span class="mono-tag" style="color:var(--ink-muted);">No verified records match the selected sampling rule.</span>`;
+    return;
+  }
+
+  container.innerHTML = "";
+  for (const item of pool) {
+    const row = document.createElement("div");
+    row.className = "er-sample-row";
+    const conf = typeof item.ocrConfidence === "number" ? `${Math.round(item.ocrConfidence * 100)}%` : "—";
+    row.innerHTML = `
+      <div>
+        <strong>${item.fieldName}</strong>
+        <span class="mono-tag" style="margin-left:8px;">${item.documentName} · p.${item.pageNumber} · OCR ${conf}</span>
+        <div style="font-size:12.5px; color:var(--ink-secondary); margin-top:2px;">Accepted value: "${item.correctedText !== undefined ? item.correctedText : item.extractedText || ""}"</div>
+      </div>
+      <button type="button" class="btn btn-sm">Audit in Split →</button>
+    `;
+    row.querySelector("button").addEventListener("click", () => openIssueInSplit(item.id));
+    container.appendChild(row);
+  }
 }
 
 /* ==========================================================================
@@ -774,11 +842,19 @@ async function handleDecision(issueId, newStatus) {
   const item = appState.queueItems.find((i) => i.id === issueId);
   if (!item) return;
 
+  const prevStatus = item.reviewStatus;
   item.reviewStatus = newStatus;
+  item.lastReviewer = "Records Clerk (Local Session)";
   item.auditHistory = item.auditHistory || [];
   item.auditHistory.unshift({
     timestamp: new Date().toLocaleTimeString(),
-    action: `Marked as ${newStatus}`,
+    isoTimestamp: new Date().toISOString(),
+    reviewer: item.lastReviewer,
+    previousStatus: prevStatus,
+    newStatus,
+    confidenceAtExtraction: item.ocrConfidence,
+    originalValue: item.extractedText,
+    action: `Marked as ${newStatus} (from ${prevStatus})`,
     note: newStatus === "VERIFIED" ? "Confirmed by reviewer" : "Flagged for investigation"
   });
 
@@ -796,17 +872,26 @@ async function handleEditSave(issueId, editPayload) {
   const item = appState.queueItems.find((i) => i.id === issueId);
   if (!item) return;
 
+  const prevStatus = item.reviewStatus;
   item.correctedText = editPayload.correctedText;
   item.selectedCodebookCode = editPayload.selectedCodebookCode;
   item.selectedCodebookLabel = editPayload.selectedCodebookLabel;
   item.markedUnreadable = editPayload.markedUnreadable;
   item.markedUnrecognised = editPayload.markedUnrecognised;
+  item.lastReviewer = "Records Clerk (Local Session)";
   item.reviewStatus =
     editPayload.markedUnreadable || editPayload.markedUnrecognised ? "FLAGGED" : "VERIFIED";
 
   item.auditHistory = item.auditHistory || [];
   item.auditHistory.unshift({
     timestamp: new Date().toLocaleTimeString(),
+    isoTimestamp: new Date().toISOString(),
+    reviewer: item.lastReviewer,
+    previousStatus: prevStatus,
+    newStatus: item.reviewStatus,
+    confidenceAtExtraction: item.ocrConfidence,
+    originalValue: item.extractedText,
+    correctedValue: editPayload.correctedText,
     action: `Edited (${item.reviewStatus}) · Original "${item.extractedText || "Blank"}" → "${editPayload.correctedText}"`,
     note: editPayload.note
   });
@@ -831,6 +916,7 @@ function advanceToNextUnresolved(currentId) {
 }
 
 function navigateIssue(delta) {
+  if (!confirmDiscardUnsavedChanges()) return;
   const currentList = filterQueueItems(appState.queueItems, appState.filters);
   const idx = currentList.findIndex((i) => i.id === appState.activeIssueId);
   if (idx === -1) return;

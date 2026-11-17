@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="css/project-index.css" />
   <link rel="stylesheet" href="css/receiving-desk.css" />
   <link rel="stylesheet" href="css/master-merger.css" />
+  <link rel="stylesheet" href="css/evidence-room.css" />
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
 </head>
@@ -425,11 +426,36 @@
          SCREEN 03: BATCH REVIEW QUEUE
          ==================================================================== -->
     <section id="view-queue" aria-label="Batch Review Queue" hidden>
+      <!-- Screen 04 Editorial Intro + Deep Forest Context Card -->
+      <div class="rd-intro-grid">
+        <div>
+          <span class="mono-tag" style="color:var(--accent-blue);">SCREEN 04 · THE EVIDENCE ROOM</span>
+          <h1 class="rd-heading">Let's examine the <em>evidence</em>.</h1>
+          <p class="rd-sub">
+            Compare extracted information against its original source and confirm what belongs in your dataset.
+          </p>
+        </div>
+
+        <div class="rd-batch-card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+            <div>
+              <span class="mono-tag" style="color:var(--ink-on-forest-muted);" id="er-project-name">PROJECT: UNASSIGNED</span>
+              <div style="font-size:18px; font-weight:600; margin-top:4px;" id="er-batch-ref">No Active Batch</div>
+            </div>
+            <div id="er-review-badge" class="status-badge mm-awaiting">◷ Awaiting Evidence</div>
+          </div>
+          <div class="rd-batch-meta-grid">
+            <div><span class="mono-tag">REVIEW MODE</span><strong>Exception-First Queue</strong></div>
+            <div><span class="mono-tag">AUDIT INTEGRITY</span><strong>Original OCR Preserved</strong></div>
+          </div>
+        </div>
+      </div>
+
       <div class="panel batch-strip" id="batch-summary-panel">
         <div class="batch-meta-row">
           <div>
             <span class="mono-tag" id="batch-project-label">PROJECT: UNASSIGNED</span>
-            <h1 class="batch-heading" id="batch-title">No Active Batch</h1>
+            <h2 class="batch-heading" id="batch-title">No Active Batch</h2>
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <span class="mono-tag" id="batch-timestamp"></span>
@@ -440,13 +466,14 @@
         </div>
 
         <div class="batch-metrics">
-          <div class="metric-cell"><div class="metric-label">Total Pages</div><div class="metric-value" id="m-total">0</div></div>
-          <div class="metric-cell"><div class="metric-label">Processed</div><div class="metric-value" id="m-processed">0</div></div>
+          <div class="metric-cell"><div class="metric-label">Docs Processed</div><div class="metric-value" id="m-processed">0</div><div class="mono-tag" id="m-total-wrap">of <span id="m-total">0</span> pages</div></div>
           <div class="metric-cell"><div class="metric-label">Awaiting Review</div><div class="metric-value" id="m-awaiting" style="color:var(--signal-amber-ink);">0</div></div>
-          <div class="metric-cell"><div class="metric-label">Verified</div><div class="metric-value" id="m-verified" style="color:var(--signal-verified);">0</div></div>
+          <div class="metric-cell"><div class="metric-label">Confirmed</div><div class="metric-value" id="m-confirmed" style="color:var(--signal-verified);">0</div></div>
+          <div class="metric-cell"><div class="metric-label">Corrected</div><div class="metric-value" id="m-corrected" style="color:var(--accent-blue);">0</div></div>
           <div class="metric-cell"><div class="metric-label">Flagged</div><div class="metric-value" id="m-flagged" style="color:var(--signal-amber-ink);">0</div></div>
           <div class="metric-cell"><div class="metric-label">Failed</div><div class="metric-value" id="m-failed" style="color:var(--signal-oxide);">0</div></div>
         </div>
+        <span id="m-verified" hidden>0</span>
 
         <div class="progress-bar-wrap">
           <span class="mono-tag" id="progress-label">0% reviewed</span>
@@ -460,6 +487,18 @@
         </div>
       </div>
 
+      <!-- Manual Document Inspection Strip (All batch documents accessible) -->
+      <div class="er-manual-strip" id="er-manual-docs-bar" hidden>
+        <div>
+          <span class="mono-tag">MANUAL DOCUMENT INSPECTION</span>
+          <div style="font-size:13px; color:var(--ink-secondary); margin-top:2px;">Open any document in this batch directly, even if no automated exceptions were flagged.</div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <select id="er-manual-doc-select" class="input-control" aria-label="Select document to inspect manually"></select>
+          <button type="button" class="btn btn-sm" id="btn-manual-inspect-doc">Inspect Document →</button>
+        </div>
+      </div>
+
       <div class="panel">
         <div class="queue-controls">
           <div class="view-tabs" role="tablist">
@@ -470,7 +509,7 @@
             <button type="button" class="filter-tab" data-status-tab="PROCESSING_FAILED">Processing Failed</button>
           </div>
           <div class="queue-inputs">
-            <select id="reason-filter" class="input-control">
+            <select id="reason-filter" class="input-control" aria-label="Filter by review reason">
               <option value="ALL_UNRESOLVED">All unresolved issues</option>
               <option value="LOW_CONFIDENCE">Low-confidence extraction</option>
               <option value="UNRECOGNISED_TERM">Unrecognised clinical terms</option>
@@ -478,6 +517,12 @@
               <option value="VALIDATION_FAILURE">Validation failures</option>
               <option value="PROCESSING_FAILURE">Processing failures</option>
               <option value="FLAGGED">Flagged items</option>
+            </select>
+            <select id="queue-sort" class="input-control" aria-label="Sort review queue">
+              <option value="SEVERITY_DESC">Sort: Priority / Severity</option>
+              <option value="CONF_ASC">Sort: Lowest Confidence First</option>
+              <option value="PAGE_ASC">Sort: Page Number</option>
+              <option value="DOC_ASC">Sort: Document Reference</option>
             </select>
             <input type="search" id="queue-search" class="input-control" placeholder="Search document, field, or text…" />
           </div>
@@ -490,13 +535,13 @@
             <table class="queue-table">
               <thead>
                 <tr>
-                  <th>Document ID</th>
+                  <th>Document</th>
                   <th>Page</th>
                   <th>Field</th>
                   <th>Reason for Review</th>
                   <th>OCR Confidence</th>
-                  <th>Status</th>
-                  <th>Severity</th>
+                  <th>Validation</th>
+                  <th>Review Status</th>
                   <th style="text-align:right;">Action</th>
                 </tr>
               </thead>
@@ -510,6 +555,32 @@
               <button type="button" class="btn btn-sm" id="btn-next-page" disabled>Next Page →</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Supervisor Quality Sampling -->
+      <div class="er-supervisor-panel" id="er-supervisor-panel">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+          <div>
+            <span class="mono-tag">SUPERVISOR QUALITY SAMPLING</span>
+            <h3 style="margin:4px 0 2px; font-size:16px;">Audit Verified &amp; Corrected Fields</h3>
+            <p style="margin:0; font-size:13px; color:var(--ink-secondary);">
+              Sample previously accepted records in this batch to catch systematic extraction drift that confidence thresholds may miss.
+            </p>
+          </div>
+          <span class="mono-tag" id="er-sample-eligible-count">0 eligible records</span>
+        </div>
+        <div class="er-sampling-controls">
+          <select id="er-sample-rule" class="input-control" aria-label="Supervisor quality sampling rule">
+            <option value="RATE_25">Sample 25% of Verified Records</option>
+            <option value="LOW_MARGIN">Verified Records with OCR &lt; 95%</option>
+            <option value="CORRECTED_ONLY">All Human-Corrected Records</option>
+            <option value="ALL_VERIFIED">All Verified Records</option>
+          </select>
+          <button type="button" class="btn btn-sm btn-electric" id="btn-run-quality-sample">Run Quality Sample</button>
+        </div>
+        <div class="er-sample-list" id="er-sample-results">
+          <span class="mono-tag" style="color:var(--ink-muted);">No quality sample run yet. Confirm or edit queue fields first.</span>
         </div>
       </div>
     </section>
@@ -572,7 +643,12 @@
             <span class="status-badge" id="interp-status-badge">—</span>
           </div>
 
-          <div class="interp-body">
+          <div class="interp-body" id="interp-body-panel">
+            <div class="er-coords-strip" id="er-coords-strip">
+              <span class="er-link-indicator"><span class="er-link-dot"></span><span id="er-coords-text">Awaiting coordinates</span></span>
+              <span class="mono-tag" id="er-coords-page">Page —</span>
+            </div>
+
             <div class="extracted-box">
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <span class="mono-tag">MACHINE EXTRACTED TEXT (ORIGINAL PRESERVED)</span>
@@ -585,12 +661,14 @@
               <div class="metric-box">
                 <div class="metric-box-label">OCR Confidence</div>
                 <div class="metric-box-val" id="interp-ocr-conf">—</div>
-                <div style="font-size:12px; color:var(--ink-secondary); margin-top:2px;">Legibility of ink characters</div>
+                <div class="er-meter-track"><div class="er-meter-fill" id="interp-ocr-meter" style="width:0%"></div></div>
+                <div style="font-size:12px; color:var(--ink-secondary); margin-top:4px;">Legibility of ink characters</div>
               </div>
               <div class="metric-box">
                 <div class="metric-box-label">Codebook Similarity</div>
                 <div class="metric-box-val" id="interp-cb-sim">—</div>
-                <div style="font-size:12px; color:var(--ink-secondary); margin-top:2px;">Semantic match to standard list</div>
+                <div class="er-meter-track"><div class="er-meter-fill" id="interp-cb-meter" style="width:0%"></div></div>
+                <div style="font-size:12px; color:var(--ink-secondary); margin-top:4px;">Semantic match to standard list</div>
               </div>
             </div>
 
@@ -604,7 +682,23 @@
               <span id="interp-validation-msg"></span>
             </div>
 
+            <details class="er-expandable" id="interp-tech-details">
+              <summary>
+                <span>Technical Metadata &amp; Extraction Provenance</span>
+                <span class="mono-tag">Inspect ▾</span>
+              </summary>
+              <div class="er-expandable-grid" id="interp-tech-grid">
+                <div><span class="mono-tag">ORIGINAL AI VALUE</span><strong id="tech-orig-val">—</strong></div>
+                <div><span class="mono-tag">SOURCE COORDINATES</span><strong id="tech-coords-val">—</strong></div>
+                <div><span class="mono-tag">VALIDATION RULE</span><strong id="tech-rule-val">—</strong></div>
+                <div><span class="mono-tag">REVIEWER</span><strong id="tech-reviewer-val">Local Records Clerk</strong></div>
+              </div>
+            </details>
+
             <div class="edit-drawer" id="edit-drawer" hidden>
+              <div class="er-unsaved-banner" id="er-unsaved-banner" hidden>
+                Unsaved changes — save or cancel before switching fields.
+              </div>
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <strong style="font-size:13px;">Edit &amp; Record Correction</strong>
                 <span class="mono-tag">Original preserved in audit log</span>

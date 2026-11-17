@@ -5,10 +5,10 @@
 
 export const PAGE_SIZE = 15;
 
-export function filterQueueItems(items, { statusTab, reasonFilter, searchQuery }) {
+export function filterQueueItems(items, { statusTab, reasonFilter, searchQuery, sortBy = "SEVERITY_DESC" }) {
   const q = (searchQuery || "").trim().toLowerCase();
 
-  return items.filter((item) => {
+  const filtered = items.filter((item) => {
     // 1. Status View Tab
     if (statusTab === "NEEDS_REVIEW") {
       if (item.reviewStatus !== "AWAITING_REVIEW" && item.reviewStatus !== "PROCESSING_FAILED") {
@@ -41,6 +41,22 @@ export function filterQueueItems(items, { statusTab, reasonFilter, searchQuery }
 
     return true;
   });
+
+  const sevRank = { BLOCKER: 3, HIGH: 3, MEDIUM: 2, WARNING: 2, LOW: 1 };
+  return filtered.sort((a, b) => {
+    if (sortBy === "CONF_ASC") {
+      return (a.ocrConfidence ?? 1) - (b.ocrConfidence ?? 1);
+    }
+    if (sortBy === "PAGE_ASC") {
+      return (a.pageNumber || 1) - (b.pageNumber || 1);
+    }
+    if (sortBy === "DOC_ASC") {
+      return String(a.documentId || "").localeCompare(String(b.documentId || ""));
+    }
+    const diff = (sevRank[b.severity] || 0) - (sevRank[a.severity] || 0);
+    if (diff !== 0) return diff;
+    return (a.ocrConfidence ?? 1) - (b.ocrConfidence ?? 1);
+  });
 }
 
 export function renderBatchSummary(state) {
@@ -69,16 +85,70 @@ export function renderBatchSummary(state) {
     : documents.filter((d) => d.processingState === "PROCESSED").reduce((acc, d) => acc + (d.pageCount || 1), 0);
 
   const awaitingCount = queueItems.filter((i) => i.reviewStatus === "AWAITING_REVIEW").length;
-  const verifiedCount = queueItems.filter((i) => i.reviewStatus === "VERIFIED").length;
+  const verifiedItems = queueItems.filter((i) => i.reviewStatus === "VERIFIED");
+  const verifiedCount = verifiedItems.length;
+  const correctedCount = queueItems.filter(
+    (i) => i.correctedText !== undefined && i.correctedText !== i.extractedText
+  ).length;
+  const confirmedCount = Math.max(0, verifiedCount - correctedCount);
   const flaggedCount = queueItems.filter((i) => i.reviewStatus === "FLAGGED").length;
   const failedCount = queueItems.filter((i) => i.reviewStatus === "PROCESSING_FAILED").length;
 
   document.getElementById("m-total").textContent = String(totalPages);
   document.getElementById("m-processed").textContent = String(processedPages);
   document.getElementById("m-awaiting").textContent = String(awaitingCount);
+  document.getElementById("m-confirmed").textContent = String(confirmedCount);
+  document.getElementById("m-corrected").textContent = String(correctedCount);
   document.getElementById("m-verified").textContent = String(verifiedCount);
   document.getElementById("m-flagged").textContent = String(flaggedCount);
   document.getElementById("m-failed").textContent = String(failedCount);
+
+  // Screen 04 Deep Forest Context Card & Manual Inspection Strip
+  const erProjEl = document.getElementById("er-project-name");
+  const erBatchEl = document.getElementById("er-batch-ref");
+  const erBadgeEl = document.getElementById("er-review-badge");
+  if (erProjEl) {
+    erProjEl.textContent = batch ? `PROJECT: ${batch.projectName.toUpperCase()}` : "PROJECT: UNASSIGNED";
+  }
+  if (erBatchEl) {
+    erBatchEl.textContent = batch ? `${batch.batchId} — ${batch.batchName}` : "No Active Batch";
+  }
+  if (erBadgeEl) {
+    if (queueItems.length === 0 && documents.length === 0) {
+      erBadgeEl.className = "status-badge mm-awaiting";
+      erBadgeEl.textContent = "◷ Awaiting Evidence";
+    } else if (awaitingCount + flaggedCount + failedCount > 0) {
+      erBadgeEl.className = "status-badge amber";
+      erBadgeEl.textContent = `${awaitingCount + flaggedCount + failedCount} Issue(s) Open`;
+    } else if (verifiedCount > 0) {
+      erBadgeEl.className = "status-badge verified";
+      erBadgeEl.textContent = "✓ All Issues Verified";
+    } else {
+      erBadgeEl.className = "status-badge mm-awaiting";
+      erBadgeEl.textContent = `${documents.length} Doc(s) Uploaded`;
+    }
+  }
+
+  const eligibleEl = document.getElementById("er-sample-eligible-count");
+  if (eligibleEl) {
+    eligibleEl.textContent = `${verifiedCount} eligible verified record(s)`;
+  }
+
+  const manualBar = document.getElementById("er-manual-docs-bar");
+  const manualSel = document.getElementById("er-manual-doc-select");
+  if (manualBar && manualSel) {
+    if (documents.length > 0) {
+      manualBar.hidden = false;
+      manualSel.innerHTML = documents
+        .map(
+          (d) =>
+            `<option value="${escapeHtml(d.id)}">${escapeHtml(d.docRef || d.id)} — ${escapeHtml(d.name)} (${d.pageCount || 1}p)</option>`
+        )
+        .join("");
+    } else {
+      manualBar.hidden = true;
+    }
+  }
 
   const totalIssues = queueItems.length;
   const pctReviewed = totalIssues > 0 ? Math.round((verifiedCount / totalIssues) * 100) : 0;
@@ -151,7 +221,12 @@ export function renderQueueTable(state, { onOpenIssue, onPageChange }) {
         : "—";
 
     const statusBadge = formatStatusBadge(item.reviewStatus);
-    const severityBadge = formatSeverityBadge(item.severity);
+    const validationBadge =
+      item.reasonCode === "VALIDATION_FAILURE"
+        ? `<span class="status-badge failed">✕ Validation Fail</span>`
+        : item.reasonCode === "PROCESSING_FAILURE"
+          ? `<span class="status-badge failed">✕ Extract Fail</span>`
+          : `<span class="status-badge amber">• Needs Check</span>`;
 
     tr.innerHTML = `
       <td>
@@ -165,8 +240,8 @@ export function renderQueueTable(state, { onOpenIssue, onPageChange }) {
       </td>
       <td>${escapeHtml(item.reasonLabel)}</td>
       <td class="mono-tag">${confText}</td>
+      <td>${validationBadge}</td>
       <td>${statusBadge}</td>
-      <td>${severityBadge}</td>
       <td style="text-align:right;">
         <button type="button" class="btn btn-sm btn-primary">Open in Evidence Split →</button>
       </td>

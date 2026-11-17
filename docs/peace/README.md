@@ -19,10 +19,11 @@
   - [x] Build paginated, exception-based Batch Review Queue (`frontend/js/queue.js`) with all 5 status views and 7 reason filters.
   - [x] Build 50/50 Evidence Split Workstation (`frontend/js/evidence-split.js`) with Deep Graphite document viewport (zoom, pan, fit, full-page, page nav, coordinate highlight, missing-source state) and Machine Interpretation (separating OCR Confidence from Codebook Similarity, Confirm/Edit/Flag with audit trail & keyboard shortcuts).
 
-- [ ] **P2 — Dual-Mode Scanner & Ingestion Hub UI** (`feat/p2-scanner-ingestion-hub`)
-  - [ ] Build live Scanner & Hot-Folder watch indicator (`C:\EncounterForms\ScanQueue`).
-  - [ ] Build manual PDF drag-and-drop zone + local file-path input field.
-  - [ ] Build Recent Scanner Batches progress table with status badges.
+- [x] **P2 — The Receiving Desk (Screen 02: Paper Intake)** (`feat/p1-ui-ux-design-shell`) *(Batch 2 Complete)*
+  - [x] Implement `Project -> Batch -> Documents -> Pages` hierarchy (`frontend/js/intake.js`).
+  - [x] Build Batch Creation flow (auto-generated `BATCH-YYYY-NNNN` reference, Facility, Reporting Period, Description) and Breadcrumb navigation (`Projects / Selected Project / Selected Batch`).
+  - [x] Build magic-byte file signature verification (`PDF`, `JPG`, `PNG`), SHA-256 content fingerprinting, and interactive Duplicate Detection resolution.
+  - [x] Build paginated Intake Ledger (search, sort, status filter, facility filter, multi-selection, page-level Document Detail modal, explicit Delete confirmation) and distinct Document vs. Page overview counts.
 
 - [ ] **P3 — Distraction-Free Guided Verification Station** (`feat/p3-guided-verification`)
   - [ ] Build cropped handwriting snippet viewer (with pan/zoom and full-page toggle).

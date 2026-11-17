@@ -1,34 +1,66 @@
 /**
- * MediExtract — Evidence Review Workstation Application State & Orchestration
+ * MediExtract — Receiving Desk & Evidence Review Workstation
+ * Unified State: Project -> Batch -> Documents -> Pages -> Review Queue
  */
 
 import { checkBackendConnection, uploadFilesToBackend, submitDecisionToBackend } from "./api.js";
-import { validateUploadFile, inspectLocalFile, renderUploadedFileList } from "./upload.js";
+import { validateUploadFile, inspectLocalFile } from "./upload.js";
+import {
+  generateBatchReference,
+  generateDocumentReference,
+  validateFileMagicBytes,
+  computeSha256Fingerprint,
+  buildPageRecords,
+  renderIntakeOverview,
+  renderIntakeLedger,
+  openDocumentDetailModal
+} from "./intake.js";
 import { renderBatchSummary, renderQueueTable, filterQueueItems } from "./queue.js";
 import { initViewerControls, renderEvidenceSplit, openEditDrawer, setZoom, viewerState } from "./evidence-split.js";
 
 const appState = {
-  view: "queue", // "queue" | "split"
+  view: "intake", // "intake" | "queue" | "split"
   syntheticMode: false,
-  batch: null,
+  projects: [
+    {
+      id: "proj_oyshia_default",
+      reference: "PRJ-OYSHIA-2026",
+      name: "OYSHIA Encounter Forms",
+      description: "Primary encounter record intake workspace",
+      requiresFacility: true,
+      facilities: []
+    }
+  ],
+  activeProjectId: "proj_oyshia_default",
+  batches: [],
+  activeBatchId: null,
   documents: [],
   queueItems: [],
+  pendingDuplicate: null,
+  selectedDocIds: new Set(),
   activeIssueId: null,
   activeDirectDocId: null,
+  intakeFilters: {
+    search: "",
+    status: "ALL",
+    facility: "ALL",
+    sort: "date_desc"
+  },
+  intakePagination: { page: 1 },
   filters: {
     statusTab: "NEEDS_REVIEW",
     reasonFilter: "ALL_UNRESOLVED",
     searchQuery: ""
   },
-  pagination: {
-    page: 1
-  }
+  pagination: { page: 1 }
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
   initViewerControls();
   bindNavigation();
-  bindUploadControls();
+  bindProjectAndBatchControls();
+  bindIntakeUploadControls();
+  bindIntakeLedgerControls();
   bindQueueFilters();
   bindKeyboardShortcuts();
   bindSyntheticDevPreview();
@@ -44,20 +76,22 @@ async function refreshBackendStatus() {
 
   if (status.connected) {
     pill.classList.add("connected");
-    text.textContent = "Backend API: Connected";
+    text.textContent = "Processing Service: Connected";
   } else {
     pill.classList.remove("connected");
-    text.textContent = "Backend API: Offline (Local Boundary)";
+    text.textContent = "Processing Service: Offline (Local Boundary)";
   }
 }
 
 function bindNavigation() {
+  document.getElementById("nav-intake").addEventListener("click", () => switchView("intake"));
   document.getElementById("nav-queue").addEventListener("click", () => switchView("queue"));
   document.getElementById("nav-split").addEventListener("click", () => {
     if (appState.activeIssueId || appState.activeDirectDocId) {
       switchView("split");
     }
   });
+  document.getElementById("btn-go-review-from-intake").addEventListener("click", () => switchView("queue"));
   document.getElementById("btn-back-to-queue").addEventListener("click", () => switchView("queue"));
 
   document.getElementById("btn-open-next-issue").addEventListener("click", () => {
@@ -77,20 +111,109 @@ function bindNavigation() {
 
 function switchView(viewName) {
   appState.view = viewName;
+  document.getElementById("view-intake").hidden = viewName !== "intake";
   document.getElementById("view-queue").hidden = viewName !== "queue";
   document.getElementById("view-split").hidden = viewName !== "split";
 
+  document.getElementById("nav-intake").classList.toggle("active", viewName === "intake");
   document.getElementById("nav-queue").classList.toggle("active", viewName === "queue");
   document.getElementById("nav-split").classList.toggle("active", viewName === "split");
 
-  if (viewName === "queue") {
+  if (viewName !== "split") {
     renderAll();
   }
 }
 
-function bindUploadControls() {
-  const dropzone = document.getElementById("upload-dropzone");
-  const fileInput = document.getElementById("file-upload-input");
+/* ==========================================================================
+   Project & Batch Hierarchy Controls
+   ========================================================================== */
+function bindProjectAndBatchControls() {
+  const projSelect = document.getElementById("select-project");
+  const batchSelect = document.getElementById("select-batch");
+
+  projSelect.addEventListener("change", (e) => {
+    appState.activeProjectId = e.target.value;
+    const projBatches = appState.batches.filter((b) => b.projectId === appState.activeProjectId);
+    appState.activeBatchId = projBatches[0]?.id || null;
+    appState.selectedDocIds.clear();
+    renderAll();
+  });
+
+  batchSelect.addEventListener("change", (e) => {
+    appState.activeBatchId = e.target.value || null;
+    appState.selectedDocIds.clear();
+    appState.intakePagination.page = 1;
+    renderAll();
+  });
+
+  document.getElementById("btn-new-batch").addEventListener("click", openBatchModal);
+  document.getElementById("btn-intake-create-batch").addEventListener("click", openBatchModal);
+  document.getElementById("btn-close-batch-modal").addEventListener("click", closeBatchModal);
+  document.getElementById("btn-cancel-batch-modal").addEventListener("click", closeBatchModal);
+  document.getElementById("btn-close-doc-detail").addEventListener("click", () => {
+    document.getElementById("doc-detail-modal").hidden = true;
+  });
+
+  document.getElementById("batch-create-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const proj = appState.projects.find((p) => p.id === appState.activeProjectId);
+    if (!proj) return;
+
+    const name = document.getElementById("bf-name").value.trim();
+    const facility = document.getElementById("bf-facility").value.trim();
+    const period = document.getElementById("bf-period").value.trim();
+    const desc = document.getElementById("bf-desc").value.trim();
+
+    if (!name || (proj.requiresFacility && !facility)) return;
+
+    const newBatch = {
+      id: `batch_${Date.now()}`,
+      reference: generateBatchReference(appState.batches),
+      name,
+      projectId: proj.id,
+      projectName: proj.name,
+      facility,
+      reportingPeriod: period,
+      description: desc,
+      createdAt: new Date().toISOString(),
+      createdBy: "Local Workstation Session",
+      lifecycleStatus: "RECEIVING",
+      activityHistory: [{ timestamp: new Date().toLocaleTimeString(), event: "Batch created" }]
+    };
+
+    appState.batches.unshift(newBatch);
+    appState.activeBatchId = newBatch.id;
+    if (facility && !proj.facilities.includes(facility)) {
+      proj.facilities.push(facility);
+    }
+
+    closeBatchModal();
+    renderAll();
+    showToast(`Created batch ${newBatch.reference}: ${newBatch.name}`);
+  });
+}
+
+function openBatchModal() {
+  const proj = appState.projects.find((p) => p.id === appState.activeProjectId);
+  document.getElementById("bf-project").value = proj ? proj.name : "No Project Selected";
+  document.getElementById("bf-name").value = "";
+  document.getElementById("bf-facility").value = "";
+  document.getElementById("bf-period").value = "";
+  document.getElementById("bf-desc").value = "";
+  document.getElementById("batch-modal").hidden = false;
+  document.getElementById("bf-name").focus();
+}
+
+function closeBatchModal() {
+  document.getElementById("batch-modal").hidden = true;
+}
+
+/* ==========================================================================
+   Paper Intake Upload, Magic-Byte Validation & SHA-256 Duplicate Detection
+   ========================================================================== */
+function bindIntakeUploadControls() {
+  const dropzone = document.getElementById("intake-dropzone");
+  const fileInput = document.getElementById("intake-file-input");
 
   dropzone.addEventListener("dragover", (e) => {
     e.preventDefault();
@@ -105,63 +228,181 @@ function bindUploadControls() {
     e.preventDefault();
     dropzone.classList.remove("drag-over");
     if (e.dataTransfer?.files?.length) {
-      handleFilesSelected(Array.from(e.dataTransfer.files));
+      handleIntakeFiles(Array.from(e.dataTransfer.files));
     }
   });
 
   fileInput.addEventListener("change", (e) => {
     if (e.target.files?.length) {
-      handleFilesSelected(Array.from(e.target.files));
+      handleIntakeFiles(Array.from(e.target.files));
       fileInput.value = "";
     }
   });
+
+  document.getElementById("btn-dup-skip").addEventListener("click", () => {
+    appState.pendingDuplicate = null;
+    document.getElementById("duplicate-alert").hidden = true;
+    showToast("Retained existing document; duplicate upload skipped.");
+  });
+
+  document.getElementById("btn-dup-inspect").addEventListener("click", () => {
+    if (appState.pendingDuplicate?.existingDoc) {
+      openDocumentDetailModal(appState.pendingDuplicate.existingDoc);
+    }
+  });
+
+  document.getElementById("btn-dup-keep-both").addEventListener("click", async () => {
+    if (!appState.pendingDuplicate) return;
+    const { inspected, existingDoc } = appState.pendingDuplicate;
+    inspected.duplicateOfRef = existingDoc.docRef;
+    appState.pendingDuplicate = null;
+    document.getElementById("duplicate-alert").hidden = true;
+    await commitUploadedDocument(inspected);
+  });
 }
 
-async function handleFilesSelected(files) {
+async function handleIntakeFiles(files) {
   if (appState.syntheticMode) {
     exitSyntheticMode();
   }
 
-  const validFiles = [];
-  for (const file of files) {
-    const check = validateUploadFile(file);
-    if (!check.valid) {
-      appState.documents.unshift({
-        id: `err_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        name: file.name,
-        sizeBytes: file.size,
-        isPdf: false,
-        pageCount: 0,
-        objectUrl: null,
-        uploadProgress: 0,
-        processingState: "UPLOAD_ERROR",
-        errorMessage: check.error
-      });
-    } else {
-      const inspected = await inspectLocalFile(file);
-      appState.documents.unshift(inspected);
-      validFiles.push(inspected);
-    }
+  // Require an active batch before receiving documents
+  if (!appState.activeBatchId) {
+    showToast("Please create or select a batch first before uploading documents.");
+    openBatchModal();
+    return;
   }
 
+  for (const file of files) {
+    const extCheck = validateUploadFile(file);
+    if (!extCheck.valid) {
+      showToast(`${file.name}: ${extCheck.error}`);
+      continue;
+    }
+
+    const magicCheck = await validateFileMagicBytes(file);
+    if (!magicCheck.valid) {
+      showToast(`${file.name}: ${magicCheck.error}`);
+      continue;
+    }
+
+    const sha256 = await computeSha256Fingerprint(file);
+    const inspected = await inspectLocalFile(file);
+    inspected.detectedFormat = magicCheck.detectedFormat;
+    inspected.sha256 = sha256;
+
+    // Duplicate content check against active batch/project
+    if (sha256) {
+      const existing = appState.documents.find(
+        (d) => d.sha256 === sha256 && d.batchId === appState.activeBatchId
+      );
+      if (existing) {
+        appState.pendingDuplicate = { inspected, existingDoc: existing };
+        document.getElementById("duplicate-msg").textContent =
+          `"${file.name}" has an identical SHA-256 content fingerprint to existing document "${existing.name}" (${existing.docRef}).`;
+        document.getElementById("duplicate-alert").hidden = false;
+        continue;
+      }
+    }
+
+    await commitUploadedDocument(inspected);
+  }
+}
+
+async function commitUploadedDocument(doc) {
+  const batch = appState.batches.find((b) => b.id === appState.activeBatchId);
+  if (!batch) return;
+
+  doc.batchId = batch.id;
+  doc.facility = batch.facility;
+  doc.docRef = generateDocumentReference(appState.documents.length);
+  doc.uploadStatus = "UPLOADED";
+  doc.processingStatus = "QUEUED";
+  doc.pages = buildPageRecords(doc.id, doc.pageCount);
+  doc.history = [
+    {
+      timestamp: new Date().toLocaleTimeString(),
+      event: `Uploaded to ${batch.reference} (${doc.pageCount || 1} page(s), ${doc.detectedFormat})`
+    }
+  ];
+
+  appState.documents.unshift(doc);
   renderAll();
 
-  if (validFiles.length > 0) {
-    const res = await uploadFilesToBackend(
-      "proj_default",
-      validFiles.map((d) => d.file)
-    );
-
-    if (!res.ok) {
-      showToast(res.message);
-    } else if (res.data?.queueItems) {
-      appState.batch = res.data.batch || appState.batch;
-      appState.queueItems.push(...res.data.queueItems);
-      validFiles.forEach((d) => (d.processingState = "PROCESSED"));
-      renderAll();
-      showToast(`Uploaded and processed ${validFiles.length} file(s).`);
-    }
+  const res = await uploadFilesToBackend(appState.activeProjectId, [doc.file]);
+  if (!res.ok) {
+    doc.history.unshift({
+      timestamp: new Date().toLocaleTimeString(),
+      event: "Stored in browser session (Backend processing service unavailable)"
+    });
+    showToast(res.message);
+  } else if (res.data?.queueItems) {
+    doc.processingStatus = "COMPLETED";
+    appState.queueItems.push(...res.data.queueItems);
+    doc.history.unshift({
+      timestamp: new Date().toLocaleTimeString(),
+      event: "Processed by backend extraction service"
+    });
+    showToast(`Processed ${doc.name}`);
   }
+  renderAll();
+}
+
+function bindIntakeLedgerControls() {
+  document.getElementById("intake-search").addEventListener("input", (e) => {
+    appState.intakeFilters.search = e.target.value;
+    appState.intakePagination.page = 1;
+    renderAll();
+  });
+
+  document.getElementById("intake-status-filter").addEventListener("change", (e) => {
+    appState.intakeFilters.status = e.target.value;
+    appState.intakePagination.page = 1;
+    renderAll();
+  });
+
+  document.getElementById("intake-facility-filter").addEventListener("change", (e) => {
+    appState.intakeFilters.facility = e.target.value;
+    appState.intakePagination.page = 1;
+    renderAll();
+  });
+
+  document.getElementById("intake-sort").addEventListener("change", (e) => {
+    appState.intakeFilters.sort = e.target.value;
+    renderAll();
+  });
+
+  document.getElementById("btn-intake-prev").addEventListener("click", () => {
+    appState.intakePagination.page = Math.max(1, appState.intakePagination.page - 1);
+    renderAll();
+  });
+
+  document.getElementById("btn-intake-next").addEventListener("click", () => {
+    appState.intakePagination.page += 1;
+    renderAll();
+  });
+
+  document.getElementById("intake-select-all").addEventListener("change", (e) => {
+    const batchDocs = appState.documents.filter((d) => d.batchId === appState.activeBatchId);
+    if (e.target.checked) {
+      batchDocs.forEach((d) => appState.selectedDocIds.add(d.id));
+    } else {
+      appState.selectedDocIds.clear();
+    }
+    renderAll();
+  });
+
+  document.getElementById("btn-bulk-delete").addEventListener("click", () => {
+    const count = appState.selectedDocIds.size;
+    if (count === 0) return;
+    if (!confirm(`Explicitly delete ${count} selected document(s) from this batch?`)) return;
+
+    appState.documents = appState.documents.filter((d) => !appState.selectedDocIds.has(d.id));
+    appState.queueItems = appState.queueItems.filter((q) => !appState.selectedDocIds.has(q.documentId));
+    appState.selectedDocIds.clear();
+    renderAll();
+    showToast(`Deleted ${count} document(s) from batch.`);
+  });
 }
 
 function bindQueueFilters() {
@@ -188,18 +429,83 @@ function bindQueueFilters() {
   });
 }
 
+/* ==========================================================================
+   Unified Render Pipeline
+   ========================================================================== */
 function renderAll() {
-  renderBatchSummary(appState);
+  // Sync Project & Batch dropdowns
+  const projSelect = document.getElementById("select-project");
+  projSelect.innerHTML = appState.projects
+    .map((p) => `<option value="${p.id}" ${p.id === appState.activeProjectId ? "selected" : ""}>${p.name}</option>`)
+    .join("");
 
-  renderUploadedFileList(document.getElementById("upload-file-list"), appState.documents, {
+  const projBatches = appState.batches.filter((b) => b.projectId === appState.activeProjectId);
+  const batchSelect = document.getElementById("select-batch");
+  if (projBatches.length === 0) {
+    batchSelect.innerHTML = `<option value="">No batches in project</option>`;
+  } else {
+    batchSelect.innerHTML = projBatches
+      .map((b) => `<option value="${b.id}" ${b.id === appState.activeBatchId ? "selected" : ""}>${b.reference} — ${b.name}</option>`)
+      .join("");
+  }
+
+  // Facility filter options
+  const proj = appState.projects.find((p) => p.id === appState.activeProjectId);
+  const facFilter = document.getElementById("intake-facility-filter");
+  const currentFac = appState.intakeFilters.facility;
+  facFilter.innerHTML = `<option value="ALL">All Facilities</option>` +
+    (proj?.facilities || [])
+      .map((f) => `<option value="${f}" ${f === currentFac ? "selected" : ""}>${f}</option>`)
+      .join("");
+
+  document.getElementById("btn-bulk-delete").hidden = appState.selectedDocIds.size === 0;
+
+  // Render Screen 02: Receiving Desk
+  renderIntakeOverview(appState);
+  renderIntakeLedger(appState, {
+    onOpenBatchModal: openBatchModal,
+    onToggleSelect: (docId, checked) => {
+      if (checked) appState.selectedDocIds.add(docId);
+      else appState.selectedDocIds.delete(docId);
+      document.getElementById("btn-bulk-delete").hidden = appState.selectedDocIds.size === 0;
+    },
+    onOpenDetail: (doc) => openDocumentDetailModal(doc),
     onInspectDoc: (doc) => openDocumentDirectly(doc),
-    onRetryUpload: async (doc) => {
+    onRetryDoc: async (doc) => {
       if (!doc.file) return;
-      const res = await uploadFilesToBackend("proj_default", [doc.file]);
-      showToast(res.ok ? `Re-sent ${doc.name} to backend.` : res.message);
+      const res = await uploadFilesToBackend(appState.activeProjectId, [doc.file]);
+      showToast(res.ok ? `Re-queued ${doc.name}` : res.message);
+    },
+    onDeleteDoc: (doc) => {
+      if (!confirm(`Explicitly delete "${doc.name}" (${doc.docRef}) from this batch?`)) return;
+      appState.documents = appState.documents.filter((d) => d.id !== doc.id);
+      appState.queueItems = appState.queueItems.filter((q) => q.documentId !== doc.id);
+      appState.selectedDocIds.delete(doc.id);
+      renderAll();
+      showToast(`Deleted ${doc.name}`);
     }
   });
 
+  // Render Screen 03: Batch Review Queue
+  const activeBatch = appState.batches.find((b) => b.id === appState.activeBatchId) || null;
+  const activeBatchDocs = appState.documents.filter((d) => d.batchId === appState.activeBatchId);
+  const batchQueueState = {
+    ...appState,
+    batch: activeBatch
+      ? {
+          batchId: activeBatch.reference,
+          projectName: proj?.name || "Project",
+          batchName: activeBatch.name,
+          totalPages: activeBatchDocs.reduce((s, d) => s + (d.pageCount || 1), 0),
+          processedPages: activeBatchDocs
+            .filter((d) => d.processingStatus === "COMPLETED")
+            .reduce((s, d) => s + (d.pageCount || 1), 0),
+          updatedAt: activeBatch.createdAt
+        }
+      : null
+  };
+
+  renderBatchSummary(batchQueueState);
   renderQueueTable(appState, {
     onOpenIssue: (issueId) => openIssueInSplit(issueId),
     onPageChange: (newPage) => {
@@ -208,8 +514,7 @@ function renderAll() {
     }
   });
 
-  const navSplit = document.getElementById("nav-split");
-  navSplit.disabled = !appState.activeIssueId && !appState.activeDirectDocId;
+  document.getElementById("nav-split").disabled = !appState.activeIssueId && !appState.activeDirectDocId;
 }
 
 function openDocumentDirectly(doc) {
@@ -266,7 +571,7 @@ async function handleDecision(issueId, newStatus) {
     note: newStatus === "VERIFIED" ? "Confirmed by reviewer" : "Flagged for investigation"
   });
 
-  await submitDecisionToBackend("proj_default", issueId, {
+  await submitDecisionToBackend(appState.activeProjectId, issueId, {
     status: newStatus,
     correctedText: item.correctedText,
     selectedCodebookCode: item.selectedCodebookCode
@@ -295,7 +600,7 @@ async function handleEditSave(issueId, editPayload) {
     note: editPayload.note
   });
 
-  await submitDecisionToBackend("proj_default", issueId, editPayload);
+  await submitDecisionToBackend(appState.activeProjectId, issueId, editPayload);
 
   showToast(`Saved correction for ${item.fieldName}`);
   advanceToNextUnresolved(issueId);
@@ -319,16 +624,12 @@ function navigateIssue(delta) {
   const idx = currentList.findIndex((i) => i.id === appState.activeIssueId);
   if (idx === -1) return;
   const target = currentList[idx + delta];
-  if (target) {
-    openIssueInSplit(target.id);
-  }
+  if (target) openIssueInSplit(target.id);
 }
 
 function bindKeyboardShortcuts() {
   document.addEventListener("keydown", (e) => {
     if (appState.view !== "split" || !appState.activeIssueId) return;
-
-    // Never trigger shortcuts while typing in inputs, textareas, or selects
     const tag = document.activeElement?.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
@@ -371,30 +672,28 @@ function showToast(msg) {
 }
 
 /* ==========================================================================
-   Isolated Synthetic Dev Fixture (OFF by default; strictly for testing states)
+   Isolated Synthetic Dev Fixture (OFF by default)
    ========================================================================== */
 function bindSyntheticDevPreview() {
   document.getElementById("btn-toggle-synthetic").addEventListener("click", () => {
-    if (appState.syntheticMode) {
-      exitSyntheticMode();
-    } else {
-      loadSyntheticDevFixture();
-    }
+    if (appState.syntheticMode) exitSyntheticMode();
+    else loadSyntheticDevFixture();
   });
-
   document.getElementById("btn-exit-synthetic").addEventListener("click", exitSyntheticMode);
 }
 
 function exitSyntheticMode() {
   appState.syntheticMode = false;
-  appState.batch = null;
+  appState.batches = appState.batches.filter((b) => !b.id.startsWith("synth_"));
+  appState.activeBatchId = appState.batches[0]?.id || null;
   appState.documents = [];
   appState.queueItems = [];
+  appState.selectedDocIds.clear();
   appState.activeIssueId = null;
   appState.activeDirectDocId = null;
   document.getElementById("synthetic-banner").hidden = true;
   document.getElementById("btn-toggle-synthetic").textContent = "Dev Preview: Synthetic Fixture";
-  switchView("queue");
+  switchView("intake");
 }
 
 function createSyntheticFormSvgUrl(docLabel, highlightedLine) {
@@ -407,7 +706,6 @@ function createSyntheticFormSvgUrl(docLabel, highlightedLine) {
       <text x="32" y="130" font-family="sans-serif" font-size="13" fill="#48504B">Respondent ID: SYNTH-0041  |  Sex: [x] Female  |  Age: 44</text>
       <text x="32" y="210" font-family="sans-serif" font-size="12" fill="#858B83">FIELD UNDER REVIEW:</text>
       <text x="36" y="245" font-family="serif" font-style="italic" font-size="24" fill="#17201D">${highlightedLine}</text>
-      <text x="32" y="340" font-family="sans-serif" font-size="12" fill="#48504B">All other fields on this synthetic sheet passed validation.</text>
     </svg>
   `;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -418,38 +716,67 @@ function loadSyntheticDevFixture() {
   document.getElementById("synthetic-banner").hidden = false;
   document.getElementById("btn-toggle-synthetic").textContent = "Exit Synthetic Preview";
 
-  const doc1Url = createSyntheticFormSvgUrl("SYNTH-DOC-01 · Page 2", "Mss wrist pain (?trauma)");
-  const doc2Url = createSyntheticFormSvgUrl("SYNTH-DOC-02 · Page 1", "Unrecognised herbal tonic");
+  const synthBatchId = "synth_batch_01";
+  appState.batches.unshift({
+    id: synthBatchId,
+    reference: "BATCH-2026-SYNTH",
+    name: "Synthetic Test Batch (Non-Clinical)",
+    projectId: appState.activeProjectId,
+    projectName: "OYSHIA Encounter Forms",
+    facility: "Synthetic Clinic A",
+    reportingPeriod: "Test Cycle",
+    createdAt: new Date().toISOString(),
+    lifecycleStatus: "REVIEW_REQUIRED"
+  });
+  appState.activeBatchId = synthBatchId;
 
-  appState.batch = {
-    batchId: "SYNTH-TEST-01",
-    projectName: "Synthetic Dev Fixture",
-    batchName: "Synthetic State Verification Batch (Non-Clinical)",
-    totalPages: 12,
-    processedPages: 11,
-    updatedAt: new Date().toISOString()
-  };
+  const doc1Url = createSyntheticFormSvgUrl("SYNTH-DOC-01 · Page 2", "Mss wrist pain (?trauma)");
+  const doc2Url = createSyntheticFormSvgUrl("SYNTH-DOC-02 · Page 1", "Herbal tonic");
 
   appState.documents = [
     {
       id: "SYNTH-DOC-01",
+      docRef: "DOC-0001",
+      batchId: synthBatchId,
       name: "synthetic_form_01.png",
+      detectedFormat: "PNG",
+      facility: "Synthetic Clinic A",
       sizeBytes: 184200,
       isPdf: false,
       pageCount: 4,
       syntheticSvgUrl: doc1Url,
-      uploadProgress: 100,
-      processingState: "PROCESSED"
+      uploadStatus: "UPLOADED",
+      processingStatus: "NEEDS_ATTENTION",
+      uploadedAt: new Date().toISOString(),
+      pages: buildPageRecords("SYNTH-DOC-01", 4).map((p, idx) => ({
+        ...p,
+        processingStatus: "COMPLETED",
+        extractionStatus: idx === 1 ? "NEEDS_REVIEW" : "COMPLETED",
+        validationStatus: idx === 1 ? "NEEDS_REVIEW" : "VALID"
+      })),
+      history: [{ timestamp: "10:00:00", event: "Loaded synthetic test document" }]
     },
     {
       id: "SYNTH-DOC-02",
+      docRef: "DOC-0002",
+      batchId: synthBatchId,
       name: "synthetic_form_02.png",
+      detectedFormat: "PNG",
+      facility: "Synthetic Clinic A",
       sizeBytes: 142900,
       isPdf: false,
       pageCount: 2,
       syntheticSvgUrl: doc2Url,
-      uploadProgress: 100,
-      processingState: "PROCESSED"
+      uploadStatus: "UPLOADED",
+      processingStatus: "NEEDS_ATTENTION",
+      uploadedAt: new Date().toISOString(),
+      pages: buildPageRecords("SYNTH-DOC-02", 2).map((p, idx) => ({
+        ...p,
+        processingStatus: "COMPLETED",
+        extractionStatus: idx === 0 ? "NEEDS_REVIEW" : "COMPLETED",
+        validationStatus: idx === 0 ? "NEEDS_REVIEW" : "VALID"
+      })),
+      history: [{ timestamp: "10:02:00", event: "Loaded synthetic test document" }]
     }
   ];
 
@@ -470,8 +797,7 @@ function loadSyntheticDevFixture() {
       suggestedCodebookLabel: "1.0 — MSS OF THE WRIST",
       codebookOptions: [
         { code: "1.0", label: "MSS OF THE WRIST" },
-        { code: "13.0", label: "MSS PAIN" },
-        { code: "91.0", label: "MSS PAIN OF RIGHT KNEE" }
+        { code: "13.0", label: "MSS PAIN" }
       ],
       validationMessage: "OCR confidence (68%) is below the 90% auto-commit threshold.",
       reviewStatus: "AWAITING_REVIEW",
@@ -491,68 +817,14 @@ function loadSyntheticDevFixture() {
       extractedText: "Herbal tonic",
       ocrConfidence: 0.92,
       codebookSimilarity: 0.34,
-      suggestedCodebookCode: null,
-      suggestedCodebookLabel: null,
       codebookOptions: [
         { code: "14.0", label: "Amlodipine" },
         { code: "88.0", label: "Diclofenac" }
       ],
-      validationMessage: "OCR legibility is high (92%), but codebook similarity is 34%. Please map or mark unrecognised.",
+      validationMessage: "OCR legibility is high (92%), but codebook similarity is 34%.",
       reviewStatus: "AWAITING_REVIEW",
       severity: "HIGH",
       bbox: { xPct: 5, yPct: 29, wPct: 84, hPct: 10 },
-      auditHistory: []
-    },
-    {
-      id: "iss_3",
-      documentId: "SYNTH-DOC-MISSING",
-      documentName: "missing_source_test.pdf",
-      pageNumber: 1,
-      totalPages: 1,
-      fieldName: "Age",
-      reasonCode: "VALIDATION_FAILURE",
-      reasonLabel: "Validation exception",
-      extractedText: "148",
-      ocrConfidence: 0.87,
-      codebookSimilarity: null,
-      validationMessage: "Value 148 exceeds expected age bound (0–115). Flagged for human assessment.",
-      missingReason: "Synthetic test case demonstrating the honest Missing Original Document state.",
-      reviewStatus: "AWAITING_REVIEW",
-      severity: "HIGH",
-      auditHistory: []
-    },
-    {
-      id: "iss_4",
-      documentId: "SYNTH-DOC-01",
-      documentName: "synthetic_form_01.png",
-      pageNumber: 1,
-      totalPages: 4,
-      fieldName: "OYSHIA_ID",
-      reasonCode: "MISSING_VALUE",
-      reasonLabel: "Missing or incomplete value",
-      extractedText: "",
-      ocrConfidence: null,
-      codebookSimilarity: null,
-      validationMessage: "Mandatory identifier field appears blank on page 1.",
-      reviewStatus: "FLAGGED",
-      severity: "MEDIUM",
-      auditHistory: [{ timestamp: "10:14:02", action: "Flagged", note: "Awaiting clinic follow-up" }]
-    },
-    {
-      id: "iss_5",
-      documentId: "SYNTH-DOC-FAIL",
-      documentName: "corrupted_scan_05.pdf",
-      pageNumber: 3,
-      totalPages: 3,
-      fieldName: "Page Extraction",
-      reasonCode: "PROCESSING_FAILURE",
-      reasonLabel: "Processing failure",
-      extractedText: "",
-      ocrConfidence: null,
-      codebookSimilarity: null,
-      validationMessage: "OCR worker failed to decode page 3 (image contrast too low).",
-      reviewStatus: "PROCESSING_FAILED",
-      severity: "HIGH",
       auditHistory: []
     }
   ];

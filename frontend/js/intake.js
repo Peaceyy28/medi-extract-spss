@@ -99,11 +99,17 @@ export function renderIntakeOverview(state) {
   const project = state.projects.find((p) => p.id === state.activeProjectId) || null;
   const batch = state.batches.find((b) => b.id === state.activeBatchId) || null;
 
-  // Breadcrumb: Projects / [Project name] / Paper Intake
+  // Breadcrumb: Projects / [Project name] / [Current Screen]
+  const screenLabel =
+    state.view === "queue"
+      ? "Review Queue"
+      : state.view === "split"
+        ? "Evidence Split"
+        : "Paper Intake";
   document.getElementById("crumb-project").textContent = project ? project.name : "No Project";
   document.getElementById("crumb-batch").textContent = batch
-    ? `Paper Intake · ${batch.reference}`
-    : "Paper Intake";
+    ? `${screenLabel} · ${batch.reference}`
+    : screenLabel;
 
   // Deep Forest Batch Context Card
   const emptyCard = document.getElementById("rd-batch-empty");

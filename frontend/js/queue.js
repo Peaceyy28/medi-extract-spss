@@ -117,7 +117,7 @@ export function renderQueueTable(state, { onOpenIssue, onPageChange }) {
     if (state.documents.length === 0 && !state.syntheticMode) {
       emptyEl.innerHTML = `
         <h3>Ready for document upload</h3>
-        <p>No encounter forms have been uploaded to this workstation yet. Upload JPG, PNG, or multi-page PDF files above to begin extraction and exception-based review.</p>
+        <p>No encounter forms have been uploaded to this workstation yet. Go to <strong>Paper Intake</strong> to upload JPG, PNG, or multi-page PDF files and begin extraction.</p>
       `;
     } else if (state.documents.length > 0 && state.queueItems.length === 0) {
       emptyEl.innerHTML = `

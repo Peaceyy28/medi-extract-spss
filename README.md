@@ -71,15 +71,15 @@ flowchart LR
 medi-extract-spss/
 ├── AGENTS.md              # rules every coding agent reads first
 ├── DESIGN.md              # HCI & design system specification (owner: Peace)
-├── MASTER_PROMPTS.md      # bootstrap prompts for milestone execution & review
+├── MASTER_PROMPTS.md      # bootstrap prompts for D1–D5 and P1–P5
 ├── LICENSE                # MIT
-├── backend/               # FastAPI + pyreadstat + OCR + validation engine
-├── frontend/              # Human-first Web UI + Virtualized SPSS Studio
-├── fixtures/              # anonymized sample schemas & mock presets
+├── backend/               # FastAPI + pyreadstat + OCR + validation engine (owner: DuroT)
+├── frontend/              # Human-first Web UI + Virtualized SPSS Studio   (owner: Peace)
+├── fixtures/              # anonymized sample schemas & mock presets       (owner: DuroT)
 └── docs/
     ├── PRD.md             # Complete Product Requirements Document for stakeholders
     ├── shared/            # architecture, API contracts, open-weight model specs
-    ├── peace/             # UI/UX research & frontend execution playbook
+    ├── duro/  peace/      # per-developer execution playbooks (D1–D5 & P1–P5)
     ├── requests.md        # cross-module contract change log
     └── AI_ASSISTANCE.md   # AI-assistance disclosure log
 ```
@@ -114,7 +114,8 @@ npm run dev
 
 | Name | Role | GitHub |
 | :--- | :--- | :--- |
-| Oluwanifemi Ojewusi (Peace) | Product Architect, HCI/UX Design & Engineering | [@Peaceyy28](https://github.com/Peaceyy28) |
+| Durotoluwa Taiwo (DuroT) | Backend, Open-Weight OCR & SPSS Engine (`D1–D5`) | [@taiwodurotoluwa-svg](https://github.com/taiwodurotoluwa-svg) |
+| Oluwanifemi Ojewusi (Peace) | Product Architect, HCI/UX Design & Frontend (`P1–P5`) | [@Peaceyy28](https://github.com/Peaceyy28) |
 
 ## Licences and acknowledgements
 

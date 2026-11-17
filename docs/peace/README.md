@@ -1,23 +1,39 @@
 # Peace's Execution Playbook (`@Peaceyy28`)
 
-## Milestone Checklist
+**Owner:** Oluwanifemi Ojewusi (**Peace**)  
+**Scope:** `/frontend`, `DESIGN.md`, `/docs/peace`  
+**Contract Reference:** [`../shared/02-api-contracts.md`](../shared/02-api-contracts.md)
+
+---
+
+## Milestone Checklist (`P1–P5`)
 
 - [x] **M0 — Architecture, PRD & Monorepo Setup**
   - [x] Inspect benchmark OYSHIA `.sav` dataset (10,981 cases, 32 variables, 178 diagnoses, 46 investigations, 241 treatments, 33 LGAs).
   - [x] Define 9 Core Product Pillars, Big $O$ complexity guarantees, and HCI Humans-First principles.
   - [x] Author stakeholder-ready `docs/PRD.md`, `AGENTS.md`, `DESIGN.md`, and `docs/shared/*`.
-- [ ] **M1 — UI/UX Research & Design System Finalization** *(Current Active Phase)*
+
+- [ ] **P1 — UI/UX Research, Design Tokens & Human-First SPA Shell** (`feat/p1-ui-ux-design-shell`) *(Current Active Phase)*
   - [ ] Gather UI inspirations, layout references, and color/typography mood boards.
-  - [ ] Lock in visual design tokens in `DESIGN.md`.
-  - [ ] Build the responsive 3+1 page frontend shell in `/frontend`.
-- [ ] **M2 — Core SPSS Engine & Multi-Project Manager**
-  - [ ] Build FastAPI + `pyreadstat` service for `.sav` / `.sps` import and export.
-  - [ ] Implement Multi-Project workspaces and blank-PDF / `.sav` template auto-discovery.
-- [ ] **M3 — Dual Scanner Ingestion, Vision OCR & Medical Auto-Coder**
-  - [ ] Implement Hot-Folder watcher (`watchdog`) + manual PDF/path upload.
-  - [ ] Integrate OpenCV deskew/OMR, open-weight HTR, and `BAAI/bge-small-en-v1.5` clinical auto-coder.
-- [ ] **M4 — Real-Time Validation & Filtered Data Analyst Reports**
-  - [ ] Implement single/cross-variable validation rules and $O(1)$ duplicate detection.
-  - [ ] Build filtered Data Analyst Validation Report generator (PDF & Excel).
-- [ ] **M5 — End-to-End Integration & Field Pilot**
-  - [ ] Connect frontend and backend, verify 60 FPS virtual scrolling on 10,981+ cases, and run full test suite.
+  - [ ] Lock in master design tokens in `DESIGN.md`.
+  - [ ] Build the 3+1 page frontend shell in `/frontend` with mock fixture loader.
+
+- [ ] **P2 — Dual-Mode Scanner & Ingestion Hub UI** (`feat/p2-scanner-ingestion-hub`)
+  - [ ] Build live Scanner & Hot-Folder watch indicator (`C:\EncounterForms\ScanQueue`).
+  - [ ] Build manual PDF drag-and-drop zone + local file-path input field.
+  - [ ] Build Recent Scanner Batches progress table with status badges.
+
+- [ ] **P3 — Distraction-Free Guided Verification Station** (`feat/p3-guided-verification`)
+  - [ ] Build cropped handwriting snippet viewer (with pan/zoom and full-page toggle).
+  - [ ] Build plain-English Question & Answer confirmation card with semantic codebook candidate dropdown.
+  - [ ] Implement keyboard navigation (`Enter` to approve, `Tab` to switch).
+
+- [ ] **P4 — Virtualized Dual-View Web SPSS Matrix & Analyst Reports UI** (`feat/p4-web-spss-and-reports`)
+  - [ ] Build $O(K)$ virtualized Data View spreadsheet (60 FPS on 10,981+ cases) and Variable View codebook inspector.
+  - [ ] Implement the live `1 ↔ Words` Value Labels toggle button and cell-click cropped paper provenance popover.
+  - [ ] Build the Filtered Data Analyst Validation Report interface (`FacilityPHC`, `LGA`, `Month`, `Issue Type` filters + scorecards & charts).
+
+- [ ] **P5 — Live Backend Integration, Project Setup Wizard & Export Polish** (`feat/p5-live-integration-polish`)
+  - [ ] Connect frontend to DuroT's `D1–D5` endpoints.
+  - [ ] Build the 2-Minute New Project Wizard (`.sav` template upload vs. blank PDF upload).
+  - [ ] Connect 1-click `.sav`, `.sps`, PDF report, and Excel exports (including `[✓] Anonymize PII for Research`).

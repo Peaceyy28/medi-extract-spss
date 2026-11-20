@@ -98,6 +98,42 @@ button {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-wrap: wrap;
+}
+
+.nav-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--bg-archive);
+  color: var(--ink-main);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.nav-tab.active .nav-step-num {
+  background: var(--accent-lime);
+  color: var(--bg-forest);
+}
+
+.guided-step-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 24px;
+  background: #F4F7FF;
+  border-bottom: 1px solid #D4E1FD;
+  font-size: 13px;
+}
+
+.guided-step-bar[hidden] {
+  display: none;
 }
 
 .nav-tab {

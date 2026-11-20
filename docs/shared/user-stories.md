@@ -4,6 +4,18 @@ This document defines concrete, testable **User Stories** for each MediExtract b
 
 ---
 
+## Planned Future Build — Organization Login & Multi-Tenant Workspaces (`Post-P5`)
+
+### US-00.1 — Organization Sign-In & Isolated Workspace
+- **Persona:** Clinic Admin / M&E Supervisor
+- **Story:** As an organization administrator, I want each organization to sign in to its own isolated workspace, so that clinics only see their own projects, batches, codebooks, and exported datasets.
+- **Acceptance Criteria (Planned):**
+  - [ ] Organization sign-in screen routes authenticated users to their organization's Project Index.
+  - [ ] All API requests scope projects, batches, and `.sav` exports to the authenticated organization ID.
+- **Integration Boundary:** Deferred until backend authentication and database persistence are implemented.
+
+---
+
 ## Screen 01 — The Project Index (`P1 / D2`)
 
 ### US-01.1 — Create a Project from an SPSS Template (`.sav`) or Blank PDF

@@ -164,10 +164,10 @@ async function refreshBackendStatus() {
 
   if (status.connected) {
     pill.classList.add("connected");
-    text.textContent = "Processing Service: Connected";
+    text.textContent = "Server Connected";
   } else {
     pill.classList.remove("connected");
-    text.textContent = "Processing Service: Offline (Local Boundary)";
+    text.textContent = "Offline Mode (Saved Locally)";
   }
 }
 
@@ -229,7 +229,30 @@ function bindNavigation() {
 
   document.getElementById("btn-prev-issue").addEventListener("click", () => navigateIssue(-1));
   document.getElementById("btn-next-issue").addEventListener("click", () => navigateIssue(1));
+
+  document.getElementById("btn-guided-prev").addEventListener("click", () => {
+    const idx = WORKFLOW_STEPS.findIndex((s) => s.view === appState.view);
+    if (idx > 0) switchView(WORKFLOW_STEPS[idx - 1].view);
+    else switchView("home");
+  });
+
+  document.getElementById("btn-guided-next").addEventListener("click", () => {
+    const idx = WORKFLOW_STEPS.findIndex((s) => s.view === appState.view);
+    if (idx >= 0 && idx < WORKFLOW_STEPS.length - 1) {
+      switchView(WORKFLOW_STEPS[idx + 1].view);
+    }
+  });
 }
+
+const WORKFLOW_STEPS = [
+  { view: "intake", label: "Paper Intake", help: "Upload scanned paper forms (PDF, JPG, PNG) into your active batch." },
+  { view: "queue", label: "Review Queue", help: "See which extracted items need a quick human check." },
+  { view: "split", label: "Evidence Room", help: "Compare the original scanned form against extracted values." },
+  { view: "merger", label: "Master Merger", help: "Combine multiple clerks' .sav files into one consistent dataset." },
+  { view: "analytics", label: "Quality Check", help: "Check for out-of-range values, duplicates, and prescription flags." },
+  { view: "studio", label: "Analysis Studio", help: "Inspect your spreadsheet records and toggle numeric codes vs. labels." },
+  { view: "export", label: "Export Hub", help: "Filter your dataset, preview reports, and export clean files." }
+];
 
 function switchView(viewName) {
   if (appState.view === "split" && viewName !== "split" && !confirmDiscardUnsavedChanges()) {
@@ -244,10 +267,31 @@ function switchView(viewName) {
   });
   document.getElementById("nav-projects").classList.remove("active");
 
-  // Show project/batch hierarchy breadcrumb inside workflow screens
-  const showCrumb =
-    viewName === "intake" || viewName === "queue" || viewName === "split" || viewName === "merger";
+  // Show project/batch hierarchy breadcrumb & plain-English Guided Step Bar inside workflow screens
+  const showCrumb = ["intake", "queue", "split", "merger", "analytics", "studio", "export"].includes(viewName);
   document.getElementById("hierarchy-breadcrumb-bar").hidden = !showCrumb;
+
+  const guidedBar = document.getElementById("guided-step-bar");
+  const stepIdx = WORKFLOW_STEPS.findIndex((s) => s.view === viewName);
+  if (guidedBar) {
+    if (stepIdx >= 0) {
+      guidedBar.hidden = false;
+      const step = WORKFLOW_STEPS[stepIdx];
+      document.getElementById("guided-step-pill").textContent = `Step ${stepIdx + 1} of ${WORKFLOW_STEPS.length} · ${step.label}`;
+      document.getElementById("guided-step-help").textContent = step.help;
+      const prevBtn = document.getElementById("btn-guided-prev");
+      const nextBtn = document.getElementById("btn-guided-next");
+      prevBtn.textContent = stepIdx > 0 ? `← ${WORKFLOW_STEPS[stepIdx - 1].label}` : "← Home";
+      if (stepIdx < WORKFLOW_STEPS.length - 1) {
+        nextBtn.hidden = false;
+        nextBtn.textContent = `Next: ${WORKFLOW_STEPS[stepIdx + 1].label} →`;
+      } else {
+        nextBtn.hidden = true;
+      }
+    } else {
+      guidedBar.hidden = true;
+    }
+  }
   window.scrollTo({ top: 0, behavior: "instant" });
 
   if (viewName !== "split") {

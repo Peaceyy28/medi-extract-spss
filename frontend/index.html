@@ -43,13 +43,13 @@
     <nav class="topbar-nav" aria-label="Primary navigation">
       <button type="button" class="nav-tab active" id="nav-home" data-view="home">Home</button>
       <button type="button" class="nav-tab" id="nav-projects" data-view="projects">Projects</button>
-      <button type="button" class="nav-tab" id="nav-intake" data-view="intake">Paper Intake</button>
-      <button type="button" class="nav-tab" id="nav-queue" data-view="queue">Review Queue</button>
-      <button type="button" class="nav-tab" id="nav-split" data-view="split">Evidence Room</button>
-      <button type="button" class="nav-tab" id="nav-merger" data-view="merger">Master Merger</button>
-      <button type="button" class="nav-tab" id="nav-analytics" data-view="analytics">Quality Observatory</button>
-      <button type="button" class="nav-tab" id="nav-studio" data-view="studio">Analysis Studio</button>
-      <button type="button" class="nav-tab" id="nav-export" data-view="export">Export Hub</button>
+      <button type="button" class="nav-tab" id="nav-intake" data-view="intake" title="Step 1: Upload scanned forms"><span class="nav-step-num">1</span>Paper Intake</button>
+      <button type="button" class="nav-tab" id="nav-queue" data-view="queue" title="Step 2: Check items needing review"><span class="nav-step-num">2</span>Review Queue</button>
+      <button type="button" class="nav-tab" id="nav-split" data-view="split" title="Step 3: Compare paper form with extracted text"><span class="nav-step-num">3</span>Evidence Room</button>
+      <button type="button" class="nav-tab" id="nav-merger" data-view="merger" title="Step 4: Combine multiple clerks' .sav files"><span class="nav-step-num">4</span>Master Merger</button>
+      <button type="button" class="nav-tab" id="nav-analytics" data-view="analytics" title="Step 5: Run data quality & prescription checks"><span class="nav-step-num">5</span>Quality Check</button>
+      <button type="button" class="nav-tab" id="nav-studio" data-view="studio" title="Step 6: View spreadsheet & variable labels"><span class="nav-step-num">6</span>Analysis Studio</button>
+      <button type="button" class="nav-tab" id="nav-export" data-view="export" title="Step 7: Filter, report & export files"><span class="nav-step-num">7</span>Export Hub</button>
       <button type="button" class="nav-tab" id="nav-settings" data-view="settings">Settings</button>
     </nav>
 
@@ -91,6 +91,18 @@
       <select id="select-batch" class="input-control"></select>
 
       <button type="button" class="btn btn-sm btn-electric" id="btn-new-batch">+ New Batch</button>
+    </div>
+  </div>
+
+  <!-- Guided Workflow Bar (Plain-English Stepper for Non-Technical Staff) -->
+  <div class="guided-step-bar" id="guided-step-bar" hidden>
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <span class="status-badge" style="background:#DCE8FF; color:#1A44A8; border-color:#BDD2FC;" id="guided-step-pill">Step 1 of 7</span>
+      <span id="guided-step-help" style="color:var(--ink-main); font-weight:500;">Upload scanned paper forms into your batch.</span>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <button type="button" class="btn btn-sm" id="btn-guided-prev">← Previous Step</button>
+      <button type="button" class="btn btn-sm btn-electric" id="btn-guided-next">Next Step →</button>
     </div>
   </div>
 

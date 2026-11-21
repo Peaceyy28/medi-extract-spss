@@ -16,7 +16,16 @@ import numpy as np
 import pandas as pd
 
 from app.config import get_settings
-from app.schemas import CaseRow, CasesPageResponse, ProjectSchema, ValidationStatus, VariableSchema, VariableType
+from app.schemas import (
+    BatchRecord,
+    CaseRow,
+    CasesPageResponse,
+    IngestFileStatus,
+    ProjectSchema,
+    ValidationStatus,
+    VariableSchema,
+    VariableType,
+)
 from app.services.pdf_schema_discovery import discover_schema_from_blank_pdf, validate_pdf_magic_bytes
 from app.services.spss_engine import (
     dataframe_cell_to_json,
@@ -101,6 +110,36 @@ class ProjectWorkspaceManager:
                     inspect_json TEXT NOT NULL,
                     plan_path TEXT NOT NULL,
                     output_filename TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS batches (
+                    batch_id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    facility TEXT NOT NULL,
+                    reporting_period TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    document_count INTEGER NOT NULL,
+                    page_count INTEGER NOT NULL,
+                    batch_json TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ingested_documents (
+                    document_id TEXT PRIMARY KEY,
+                    batch_id TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    sha256 TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    page_count INTEGER NOT NULL,
+                    created_at TEXT NOT NULL
                 )
                 """
             )
@@ -199,6 +238,8 @@ class ProjectWorkspaceManager:
         with self._connect() as conn:
             cur = conn.execute("DELETE FROM projects WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM merge_sessions WHERE project_id = ?", (project_id,))
+            conn.execute("DELETE FROM ingested_documents WHERE project_id = ?", (project_id,))
+            conn.execute("DELETE FROM batches WHERE project_id = ?", (project_id,))
             deleted = cur.rowcount > 0
         ws = self._projects_root / project_id
         if ws.exists():
@@ -503,6 +544,93 @@ class ProjectWorkspaceManager:
                 "UPDATE merge_sessions SET status = ?, output_filename = ? WHERE merge_session_id = ?",
                 ("EXECUTED", output_filename, merge_session_id),
             )
+
+    def next_batch_id(self) -> str:
+        year = datetime.now(timezone.utc).year
+        prefix = f"BATCH-{year}-"
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT batch_id FROM batches WHERE batch_id LIKE ?",
+                (f"{prefix}%",),
+            ).fetchall()
+        max_seq = 0
+        for row in rows:
+            tail = row["batch_id"][len(prefix) :]
+            if tail.isdigit():
+                max_seq = max(max_seq, int(tail))
+        return f"{prefix}{max_seq + 1:04d}"
+
+    def find_duplicate_document(
+        self, project_id: str, sha256: str
+    ) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM ingested_documents
+                WHERE project_id = ? AND sha256 = ? AND status = ?
+                ORDER BY created_at ASC LIMIT 1
+                """,
+                (project_id, sha256, IngestFileStatus.INGESTED.value),
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def save_batch(self, batch: BatchRecord) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO batches (
+                    batch_id, project_id, source, facility, reporting_period,
+                    description, created_at, document_count, page_count, batch_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    batch.batch_id,
+                    batch.project_id,
+                    batch.source,
+                    batch.facility,
+                    batch.reporting_period,
+                    batch.description,
+                    batch.created_at,
+                    batch.document_count,
+                    batch.page_count,
+                    batch.model_dump_json(),
+                ),
+            )
+            for doc in batch.documents:
+                conn.execute(
+                    """
+                    INSERT INTO ingested_documents (
+                        document_id, batch_id, project_id, filename, sha256,
+                        status, page_count, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        doc.document_id,
+                        batch.batch_id,
+                        batch.project_id,
+                        doc.filename,
+                        doc.sha256,
+                        doc.status.value,
+                        doc.page_count,
+                        batch.created_at,
+                    ),
+                )
+
+    def list_batches(self, project_id: str) -> list[BatchRecord]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT batch_json FROM batches WHERE project_id = ? ORDER BY created_at DESC, batch_id DESC",
+                (project_id,),
+            ).fetchall()
+        return [BatchRecord.model_validate_json(r["batch_json"]) for r in rows]
+
+    def get_batch(self, project_id: str, batch_id: str) -> BatchRecord | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT batch_json FROM batches WHERE project_id = ? AND batch_id = ?",
+                (project_id, batch_id),
+            ).fetchone()
+        return BatchRecord.model_validate_json(row["batch_json"]) if row is not None else None
 
 
 @lru_cache(maxsize=1)

@@ -318,9 +318,10 @@ class MergeExecuteRequest(BaseModel):
     """Request payload for POST /api/v1/projects/{id}/merge/execute."""
 
     merge_session_id: str
-    approved_mappings: dict[str, str] = Field(default_factory=dict)
+    approved_mappings: dict[str, str | dict[str, str]] = Field(default_factory=dict)
     deduplicate: bool = True
     append_provenance: bool = True
+    commit_to_project: bool = True
 
 
 class MergeExecuteResponse(BaseModel):
@@ -331,8 +332,10 @@ class MergeExecuteResponse(BaseModel):
     project_id: str
     total_rows_merged: int
     duplicates_removed: int
+    codebook_recodes_applied: int = 0
     filename: str
     download_url: str
+    clerk_quality_scorecard: list[ClerkScorecardItem] = Field(default_factory=list)
 
 
 class AutoRecodeRequest(BaseModel):
@@ -341,6 +344,7 @@ class AutoRecodeRequest(BaseModel):
     include_age_group: bool = True
     include_disease_category: bool = True
     include_counts: bool = True
+    variables: list[str] | None = None
 
 
 class AutoRecodeResponse(BaseModel):
@@ -349,6 +353,7 @@ class AutoRecodeResponse(BaseModel):
     ok: bool = True
     project_id: str
     variables_added: list[str]
+    variables_schema: list[VariableSchema] = Field(default_factory=list)
     total_cases_updated: int
 
 

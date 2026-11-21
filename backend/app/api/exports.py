@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 
 from app.config import get_settings
 from app.schemas import ExportFormat, ExportRequest, ExportResponse
-from app.services.fixture_store import get_fixture_store
+from app.services.project_store import get_project_store
 from app.services.spss_engine import (
     generate_sps_syntax,
     write_csv_file,
@@ -52,7 +52,7 @@ def download_sav_export(
     anonymize: bool = Query(default=False),
 ) -> FileResponse:
     """Generate and stream a genuine IBM SPSS (.sav) binary dataset."""
-    store = get_fixture_store()
+    store = get_project_store()
     loaded = store.get_dataframe_and_schema(project_id)
     if loaded is None:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
@@ -76,7 +76,7 @@ def download_sps_export(
     include_autorecode: bool = Query(default=False),
 ) -> PlainTextResponse:
     """Generate and download reproducible IBM SPSS (.sps) syntax."""
-    store = get_fixture_store()
+    store = get_project_store()
     loaded = store.get_dataframe_and_schema(project_id)
     if loaded is None:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
@@ -97,7 +97,7 @@ def download_sps_export(
 @router.post("/{project_id}/export", response_model=ExportResponse)
 def create_export(project_id: str, payload: ExportRequest) -> ExportResponse:
     """Generate an export file (.sav, .sps, .xlsx, .csv, .dta) and return its download URL."""
-    store = get_fixture_store()
+    store = get_project_store()
     loaded = store.get_dataframe_and_schema(project_id)
     if loaded is None:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")

@@ -7,7 +7,7 @@ from fastapi import APIRouter
 
 from app.config import get_settings
 from app.schemas import HealthResponse
-from app.services.fixture_store import get_fixture_store
+from app.services.project_store import get_project_store
 
 router = APIRouter(tags=["health"])
 
@@ -16,7 +16,7 @@ router = APIRouter(tags=["health"])
 def health_check() -> HealthResponse:
     """Return service status, schema version, and pyreadstat availability."""
     settings = get_settings()
-    store = get_fixture_store()
+    store = get_project_store()
     return HealthResponse(
         status="ok",
         schema_version=settings.schema_version,

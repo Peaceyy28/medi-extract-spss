@@ -2,7 +2,7 @@
 
 FastAPI + `pyreadstat` + OpenCV + Open-Weight Vision & Semantic Auto-Coder (`BAAI/bge-small-en-v1.5`).
 
-- **Current Branch / Milestones:** `D1` (`feat/d1-spss-scaffold-contracts`) — Core contracts, `pyreadstat` `.sav`/`.sps`/`.xlsx`/`.csv`/`.dta` engine, and synthetic OYSHIA fixtures.
+- **Current Branch / Milestones:** `D1` + `D2` (`feat/d2-projects-autoschema`) — Core `pyreadstat` engine, SQLite Multi-Project Workspaces, `.sav`/PDF Auto-Schema Discovery, 4-Layer Multi-Clerk `.sav` Merger, and 1-Click Auto-Recode.
 - **Architecture & Contracts:** See [`../docs/shared/01-architecture.md`](../docs/shared/01-architecture.md) and [`../docs/shared/02-api-contracts.md`](../docs/shared/02-api-contracts.md).
 
 ## Local Setup (`uv` + Python 3.12+)

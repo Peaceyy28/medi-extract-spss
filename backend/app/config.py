@@ -1,4 +1,4 @@
-"""Application configuration with environment-overridable local data paths."""
+"""Application configuration with environment-overridable local data and model paths."""
 
 from __future__ import annotations
 
@@ -26,7 +26,22 @@ class Settings(BaseSettings):
     fixtures_dir: Path = _REPO_ROOT / "fixtures"
     watch_folder: str = r"C:\EncounterForms\ScanQueue"
     cors_origins: list[str] = ["*"]
-    vision_provider_chain: str = "ollama"
+
+    # Vision HTR provider chain (local Ollama primary; HF / Groq for hosted open-weight demos)
+    vision_provider_chain: str = "ollama,huggingface,groq"
+    ollama_base_url: str = "http://localhost:11434/v1"
+    ollama_vision_model: str = "qwen2.5vl:3b"
+    hf_base_url: str = "https://router.huggingface.co/v1"
+    hf_token: str = ""
+    hf_vision_model: str = "Qwen/Qwen2.5-VL-7B-Instruct"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    groq_api_key: str = ""
+    groq_vision_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
+
+    # Medical Auto-Coder embedding settings
+    embedding_backend: str = "fastembed"
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    confidence_threshold: float = 0.90
 
     def ensure_data_dirs(self) -> None:
         """Create required local storage directories on demand."""

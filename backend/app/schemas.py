@@ -385,3 +385,165 @@ class HealthResponse(BaseModel):
     service: str = "medi-extract-spss"
     pyreadstat_version: str
     active_projects: int
+
+
+class IngestFileStatus(str, Enum):
+    """Outcome for an individual file processed during batch ingestion."""
+
+    INGESTED = "INGESTED"
+    DUPLICATE_SKIPPED = "DUPLICATE_SKIPPED"
+    REJECTED_INVALID_FORMAT = "REJECTED_INVALID_FORMAT"
+
+
+class OmrFieldResult(BaseModel):
+    """Deterministic Optical Mark Recognition outcome for a checkbox/radio group."""
+
+    variable_name: str
+    selected_code: float | None = None
+    selected_label: str | None = None
+    fill_ratios: dict[str, float] = Field(default_factory=dict)
+    confidence: float = Field(ge=0.0, le=1.0)
+    status: ValidationStatus
+    provenance: FieldProvenance
+
+
+class CroppedFieldArtifact(BaseModel):
+    """Metadata linking an extracted form field to its WebP crop artifact."""
+
+    variable_name: str
+    page_number: int = Field(ge=1)
+    bbox: list[float] = Field(min_length=4, max_length=4)
+    crop_image_uri: str
+
+
+class IngestedPageRecord(BaseModel):
+    """Pre-processed single encounter page with OMR outputs and field crop URLs."""
+
+    page_number: int = Field(ge=1)
+    case_index: int = Field(ge=1)
+    width: int = Field(ge=1)
+    height: int = Field(ge=1)
+    deskew_angle_deg: float = 0.0
+    full_page_url: str
+    crops: list[CroppedFieldArtifact] = Field(default_factory=list)
+    omr_results: list[OmrFieldResult] = Field(default_factory=list)
+
+
+class IngestedDocumentRecord(BaseModel):
+    """Document-level record within an ingested scanning batch."""
+
+    document_id: str
+    filename: str
+    mime_type: str
+    sha256: str
+    size_bytes: int
+    status: IngestFileStatus
+    page_count: int = 0
+    pages: list[IngestedPageRecord] = Field(default_factory=list)
+    duplicate_of_batch_id: str | None = None
+    error: str | None = None
+
+
+class BatchRecord(BaseModel):
+    """Batch ingestion ledger record following Project -> Batch -> Documents -> Pages."""
+
+    batch_id: str
+    project_id: str
+    source: Literal["manual_upload", "local_path", "hot_folder"]
+    facility: str = ""
+    reporting_period: str = ""
+    description: str = ""
+    created_at: str
+    document_count: int = 0
+    page_count: int = 0
+    documents: list[IngestedDocumentRecord] = Field(default_factory=list)
+
+
+class LocalPathIngestRequest(BaseModel):
+    """Request payload for POST /api/v1/projects/{id}/ingest/paths."""
+
+    file_paths: list[str] = Field(min_length=1)
+    facility: str = ""
+    reporting_period: str = ""
+    description: str = ""
+    duplicate_policy: Literal["skip", "allow"] = "skip"
+
+
+class ScannerWatchStatus(BaseModel):
+    """Live state of the watchdog Hot-Folder scanner listener."""
+
+    active: bool
+    watch_folder: str
+    project_id: str | None = None
+    debounce_ms: int = 500
+    files_processed_count: int = 0
+    last_event_at: str | None = None
+
+
+class ScannerWatchStartRequest(BaseModel):
+    """Request payload to start watching a Hot-Folder directory."""
+
+    project_id: str
+    watch_folder: str | None = None
+    debounce_ms: int = Field(default=500, ge=50, le=5000)
+
+
+class AutoCodeRequest(BaseModel):
+    """Request payload for POST /api/v1/projects/{id}/autocode."""
+
+    variable_name: str
+    raw_text: str
+    top_k: int = Field(default=3, ge=1, le=10)
+
+
+class AutoCodeResponse(BaseModel):
+    """Response payload for semantic clinical auto-coding."""
+
+    variable_name: str
+    raw_text: str
+    normalized_text: str
+    match_tier: Literal["EXACT", "SYNONYM", "VECTOR", "QUARANTINED"]
+    matched_code: float | None = None
+    matched_label: str | None = None
+    similarity: float = Field(ge=0.0, le=1.0)
+    quarantined: bool = False
+    candidates: list[SuggestedCandidate] = Field(default_factory=list)
+
+
+class ReviewAuditEntry(BaseModel):
+    """Immutable audit log entry created when a human resolves a review item."""
+
+    audit_id: int
+    review_id: str
+    project_id: str
+    action: str
+    raw_ocr_text: str
+    selected_code: float | str | None = None
+    corrected_text: str | None = None
+    reviewer: str
+    reason: str | None = None
+    created_at: str
+
+
+class ReviewConfirmResponse(BaseModel):
+    """Response payload for POST /api/v1/projects/{id}/reviews/{rev_id}/confirm."""
+
+    ok: bool = True
+    review: ReviewItem
+    audit_entry: ReviewAuditEntry
+    pending_reviews_remaining: int
+
+
+class BatchExtractionResponse(BaseModel):
+    """Summary returned after running Vision HTR + Auto-Coder on an ingested batch."""
+
+    ok: bool = True
+    project_id: str
+    batch_id: str
+    provider_used: str
+    model_used: str
+    pages_processed: int
+    cases_added: int
+    auto_verified_fields: int
+    reviews_queued: int
+    quarantined_terms: list[str] = Field(default_factory=list)

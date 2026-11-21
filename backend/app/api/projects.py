@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, sta
 
 from app.config import get_settings
 from app.schemas import CasesPageResponse, ProjectListResponse, ProjectSchema, VariableSchema
+from app.services.hot_folder import get_hot_folder_watcher
 from app.services.pdf_schema_discovery import validate_pdf_magic_bytes
 from app.services.project_store import get_project_store
 from app.services.spss_engine import validate_sav_magic_bytes
@@ -20,10 +21,11 @@ def list_projects() -> ProjectListResponse:
     """List isolated project workspaces and current scanner watch status."""
     settings = get_settings()
     store = get_project_store()
+    watch = get_hot_folder_watcher().status()
     return ProjectListResponse(
         projects=store.list_projects(),
-        scanner_watch_active=False,
-        watch_folder=settings.watch_folder,
+        scanner_watch_active=watch.active,
+        watch_folder=watch.watch_folder or settings.watch_folder,
     )
 
 

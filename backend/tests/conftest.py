@@ -9,19 +9,27 @@ from fastapi.testclient import TestClient
 
 from app.config import reset_settings_cache
 from app.main import create_app
+from app.services.autocoder import reset_embedder_cache
 from app.services.fixture_store import reset_fixture_store_cache
+from app.services.hot_folder import reset_hot_folder_watcher
 from app.services.project_store import reset_project_store_cache
 
 
 @pytest.fixture()
 def test_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Point MEDIEXTRACT_DATA_DIR to a temporary directory for isolated tests."""
+    """Configure isolated temp directory & zero-download stub AI providers for tests."""
     data_dir = tmp_path / "data"
     monkeypatch.setenv("MEDIEXTRACT_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("MEDIEXTRACT_EMBEDDING_BACKEND", "stub")
+    monkeypatch.setenv("MEDIEXTRACT_VISION_PROVIDER_CHAIN", "stub")
+    reset_hot_folder_watcher()
+    reset_embedder_cache()
     reset_settings_cache()
     reset_fixture_store_cache()
     reset_project_store_cache()
     yield data_dir
+    reset_hot_folder_watcher()
+    reset_embedder_cache()
     reset_settings_cache()
     reset_fixture_store_cache()
     reset_project_store_cache()

@@ -6,6 +6,7 @@ import json
 import re
 import shutil
 import sqlite3
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -71,6 +72,8 @@ class ProjectWorkspaceManager:
         self._db_path = self._data_dir / "mediextract.db"
         self._projects_root = self._data_dir / "projects"
         self._projects_root.mkdir(parents=True, exist_ok=True)
+        self._cache_lock = threading.Lock()
+        self._dataset_cache: dict[str, tuple[int, pd.DataFrame]] = {}
         self._init_db()
         self._seed_default_project()
 
@@ -176,6 +179,18 @@ class ProjectWorkspaceManager:
                     created_at TEXT NOT NULL
                 )
                 """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_ingested_docs_proj_sha ON ingested_documents(project_id, sha256, status)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_batches_proj ON batches(project_id, created_at)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reviews_proj_status ON reviews(project_id, status, batch_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_audit_proj_rev ON review_audit_log(project_id, review_id)"
             )
 
     def _workspace_dir(self, project_id: str) -> Path:
@@ -295,6 +310,8 @@ class ProjectWorkspaceManager:
         return self._row_to_project(row) if row is not None else None
 
     def delete_project(self, project_id: str) -> bool:
+        with self._cache_lock:
+            self._dataset_cache.pop(project_id, None)
         with self._connect() as conn:
             cur = conn.execute("DELETE FROM projects WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM merge_sessions WHERE project_id = ?", (project_id,))
@@ -445,8 +462,16 @@ class ProjectWorkspaceManager:
         ws = self._workspace_dir(project_id)
         dataset_path = ws / "dataset.sav"
         if dataset_path.is_file():
+            mtime_ns = dataset_path.stat().st_mtime_ns
+            with self._cache_lock:
+                cached = self._dataset_cache.get(project_id)
+                if cached is not None and cached[0] == mtime_ns:
+                    return cached[1].copy(deep=True), project.variables
+
             df, _, _ = read_sav_file(dataset_path)
-            return df, project.variables
+            with self._cache_lock:
+                self._dataset_cache[project_id] = (mtime_ns, df)
+            return df.copy(deep=True), project.variables
 
         return empty_dataframe_from_schema(project.variables), project.variables
 
@@ -463,8 +488,13 @@ class ProjectWorkspaceManager:
 
         ws = self._workspace_dir(project_id)
         dataset_path = ws / "dataset.sav"
+        with self._cache_lock:
+            self._dataset_cache.pop(project_id, None)
         if len(df) > 0:
             write_sav_file(df, variables, dataset_path, anonymize=False)
+            mtime_ns = dataset_path.stat().st_mtime_ns
+            with self._cache_lock:
+                self._dataset_cache[project_id] = (mtime_ns, df.copy(deep=True))
         elif dataset_path.is_file():
             dataset_path.unlink()
 

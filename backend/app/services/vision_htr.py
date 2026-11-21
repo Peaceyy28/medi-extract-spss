@@ -9,6 +9,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Callable
 
+import cv2
 import numpy as np
 from openai import OpenAI
 
@@ -173,17 +174,48 @@ def _extract_json_dict(raw_text: str) -> dict[str, Any]:
         cleaned = cleaned.strip("`")
         if cleaned.lower().startswith("json"):
             cleaned = cleaned[4:].strip()
-    parsed = json.loads(cleaned)
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start != -1 and end > start:
+            parsed = json.loads(cleaned[start : end + 1])
+        else:
+            raise
     if not isinstance(parsed, dict):
         raise ValueError("Vision model response JSON must be an object")
     return parsed
+
+
+def _downscale_image_for_vlm(
+    image_bytes: bytes, max_dim: int = 1280
+) -> tuple[bytes, str]:
+    """Downscale large page scans while keeping handwriting sharp for faster VLM inference."""
+    arr = np.frombuffer(image_bytes, dtype=np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if img is None:
+        return image_bytes, "image/webp"
+    h, w = img.shape[:2]
+    largest = max(h, w)
+    if largest > max_dim:
+        scale = max_dim / float(largest)
+        img = cv2.resize(
+            img,
+            (max(1, int(round(w * scale))), max(1, int(round(h * scale)))),
+            interpolation=cv2.INTER_AREA,
+        )
+    ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    if ok:
+        return buf.tobytes(), "image/jpeg"
+    return image_bytes, "image/webp"
 
 
 def _default_client_factory(provider: VisionProvider) -> Any:
     return OpenAI(
         base_url=provider.base_url,
         api_key=provider.api_key,
-        timeout=30.0,
+        timeout=90.0,
     )
 
 
@@ -250,7 +282,8 @@ class VisionHTRClient:
         target_fields: list[str],
     ) -> PageHTROutput:
         client = self._client_factory(provider)
-        b64_img = base64.b64encode(image_bytes).decode("ascii")
+        opt_bytes, mime = _downscale_image_for_vlm(image_bytes)
+        b64_img = base64.b64encode(opt_bytes).decode("ascii")
         fields_csv = ", ".join(target_fields[:32])
         prompt = (
             "You are a clinical encounter form handwriting transcription engine. "
@@ -266,7 +299,7 @@ class VisionHTRClient:
                     {"type": "text", "text": prompt},
                     {
                         "type": "image_url",
-                        "image_url": {"url": f"data:image/webp;base64,{b64_img}"},
+                        "image_url": {"url": f"data:{mime};base64,{b64_img}"},
                     },
                 ],
             }
@@ -283,12 +316,13 @@ class VisionHTRClient:
             )
         except Exception as exc:
             msg = str(exc).lower()
-            if "response_format" in msg or "logprobs" in msg:
+            if "response_format" in msg or "logprobs" in msg or "not supported" in msg:
                 resp = client.chat.completions.create(
                     model=provider.model,
                     messages=messages,
                     temperature=0.0,
                     max_tokens=1400,
+                    response_format={"type": "json_object"},
                 )
             else:
                 raise

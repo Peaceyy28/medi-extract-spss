@@ -177,6 +177,7 @@ class ValidationReportFilter(BaseModel):
     month: int | None = None
     year: int | None = None
     issue_type: str = "ALL"
+    include_narrative: bool = False
 
 
 class ValidationSummary(BaseModel):
@@ -254,6 +255,7 @@ class ValidationReportResponse(BaseModel):
     demographics_audit: DemographicsAudit
     clinical_audit: ClinicalAudit
     facility_ranking: list[FacilityRankingItem] = Field(default_factory=list)
+    narrative_summary: str | None = None
 
 
 class VariableDriftItem(BaseModel):

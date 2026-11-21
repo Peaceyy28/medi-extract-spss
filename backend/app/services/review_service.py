@@ -21,7 +21,7 @@ from app.schemas import (
     VariableSchema,
     VariableType,
 )
-from app.services.autocoder import Embedder, MedicalAutoCoder
+from app.services.autocoder import Embedder, get_project_autocoder
 from app.services.image_pipeline import DEFAULT_FIELD_BOXES
 from app.services.project_store import ProjectWorkspaceManager
 from app.services.vision_htr import (
@@ -66,7 +66,9 @@ def extract_batch_into_project(
     threshold = settings.confidence_threshold
 
     client = vision_client or VisionHTRClient(settings=settings)
-    autocoder = MedicalAutoCoder(variables=variables, embedder=embedder)
+    autocoder = get_project_autocoder(
+        project_id=project_id, variables=variables, embedder=embedder
+    )
     provenance_map = store.load_provenance(project_id)
 
     new_rows: list[dict[str, Any]] = []

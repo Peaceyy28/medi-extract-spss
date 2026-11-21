@@ -20,8 +20,11 @@ from app.schemas import (
     BatchRecord,
     CaseRow,
     CasesPageResponse,
+    FieldProvenance,
     IngestFileStatus,
     ProjectSchema,
+    ReviewAuditEntry,
+    ReviewItem,
     ValidationStatus,
     VariableSchema,
     VariableType,
@@ -143,6 +146,37 @@ class ProjectWorkspaceManager:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS reviews (
+                    review_id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    batch_id TEXT NOT NULL,
+                    case_index INTEGER NOT NULL,
+                    variable_name TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    review_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS review_audit_log (
+                    audit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    review_id TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    raw_ocr_text TEXT NOT NULL,
+                    selected_code_json TEXT,
+                    corrected_text TEXT,
+                    reviewer TEXT NOT NULL,
+                    reason TEXT,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
 
     def _workspace_dir(self, project_id: str) -> Path:
         ws = self._projects_root / project_id
@@ -166,6 +200,12 @@ class ProjectWorkspaceManager:
         shutil.copy2(sav_fixture, templates_dir / "oyshia_encounter_synthetic.sav")
         shutil.copy2(sav_fixture, ws / "dataset.sav")
 
+        reviews_fixture = self._fixtures_dir / "oyshia_reviews_sample.json"
+        seeded_reviews: list[ReviewItem] = []
+        if reviews_fixture.is_file():
+            raw_revs = json.loads(reviews_fixture.read_text(encoding="utf-8"))
+            seeded_reviews = [ReviewItem.model_validate(item) for item in raw_revs]
+
         now = "2026-11-13T12:00:00Z"
         vars_json = json.dumps([v.model_dump() for v in variables])
         with self._connect() as conn:
@@ -184,11 +224,31 @@ class ProjectWorkspaceManager:
                     "fixture_seed",
                     "oyshia_encounter_synthetic.sav",
                     len(df),
-                    5,
+                    len(seeded_reviews),
                     vars_json,
                     now,
                 ),
             )
+            for rev in seeded_reviews:
+                conn.execute(
+                    """
+                    INSERT INTO reviews (
+                        review_id, project_id, batch_id, case_index, variable_name,
+                        status, review_json, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        rev.review_id,
+                        rev.project_id,
+                        rev.batch_id,
+                        rev.case_index,
+                        rev.variable_name,
+                        rev.status.value,
+                        rev.model_dump_json(),
+                        now,
+                        now,
+                    ),
+                )
 
     def _next_project_id(self) -> str:
         year = datetime.now(timezone.utc).year
@@ -238,6 +298,8 @@ class ProjectWorkspaceManager:
         with self._connect() as conn:
             cur = conn.execute("DELETE FROM projects WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM merge_sessions WHERE project_id = ?", (project_id,))
+            conn.execute("DELETE FROM review_audit_log WHERE project_id = ?", (project_id,))
+            conn.execute("DELETE FROM reviews WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM ingested_documents WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM batches WHERE project_id = ?", (project_id,))
             deleted = cur.rowcount > 0
@@ -470,6 +532,7 @@ class ProjectWorkspaceManager:
 
         total_matched = len(work_df)
         sliced = work_df.iloc[offset : offset + limit]
+        provenance_all = self.load_provenance(project_id)
 
         rows: list[CaseRow] = []
         for record in sliced.to_dict(orient="records"):
@@ -483,12 +546,18 @@ class ProjectWorkspaceManager:
                 else:
                     labels[col] = "" if values[col] is None else str(values[col])
 
+            raw_case_prov = provenance_all.get(str(case_idx), {})
+            parsed_prov = {
+                k: FieldProvenance.model_validate(v)
+                for k, v in raw_case_prov.items()
+            }
+
             rows.append(
                 CaseRow(
                     case_index=case_idx,
                     values=values,
                     labels=labels,
-                    provenance={},
+                    provenance=parsed_prov,
                     validation_status=ValidationStatus.AUTO_VERIFIED,
                 )
             )
@@ -500,6 +569,175 @@ class ProjectWorkspaceManager:
             limit=limit,
             rows=rows,
         )
+
+    def load_provenance(self, project_id: str) -> dict[str, dict[str, Any]]:
+        prov_path = self._workspace_dir(project_id) / "provenance.json"
+        if not prov_path.is_file():
+            return {}
+        return json.loads(prov_path.read_text(encoding="utf-8"))
+
+    def save_provenance(
+        self, project_id: str, provenance_map: dict[str, dict[str, Any]]
+    ) -> None:
+        prov_path = self._workspace_dir(project_id) / "provenance.json"
+        prov_path.write_text(json.dumps(provenance_map, indent=2), encoding="utf-8")
+
+    def upsert_review(self, review: ReviewItem) -> None:
+        now = _utc_now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO reviews (
+                    review_id, project_id, batch_id, case_index, variable_name,
+                    status, review_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(review_id) DO UPDATE SET
+                    status = excluded.status,
+                    review_json = excluded.review_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    review.review_id,
+                    review.project_id,
+                    review.batch_id,
+                    review.case_index,
+                    review.variable_name,
+                    review.status.value,
+                    review.model_dump_json(),
+                    now,
+                    now,
+                ),
+            )
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM reviews WHERE project_id = ? AND status = ?",
+                (review.project_id, ValidationStatus.NEEDS_REVIEW.value),
+            ).fetchone()[0]
+            conn.execute(
+                "UPDATE projects SET pending_reviews = ?, updated_at = ? WHERE project_id = ?",
+                (int(pending), now, review.project_id),
+            )
+
+    def list_reviews(
+        self,
+        project_id: str,
+        status: str | None = None,
+        batch_id: str | None = None,
+    ) -> list[ReviewItem]:
+        query = "SELECT review_json FROM reviews WHERE project_id = ?"
+        params: list[Any] = [project_id]
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        if batch_id:
+            query += " AND batch_id = ?"
+            params.append(batch_id)
+        query += " ORDER BY case_index ASC, review_id ASC"
+        with self._connect() as conn:
+            rows = conn.execute(query, tuple(params)).fetchall()
+        return [ReviewItem.model_validate_json(r["review_json"]) for r in rows]
+
+    def get_review(self, project_id: str, review_id: str) -> ReviewItem | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT review_json FROM reviews WHERE project_id = ? AND review_id = ?",
+                (project_id, review_id),
+            ).fetchone()
+        return ReviewItem.model_validate_json(row["review_json"]) if row is not None else None
+
+    def resolve_review(
+        self,
+        project_id: str,
+        review_id: str,
+        new_status: ValidationStatus,
+        action: str,
+        selected_code: float | str | None,
+        corrected_text: str | None,
+        reviewer: str,
+        reason: str | None,
+    ) -> tuple[ReviewItem, ReviewAuditEntry, int]:
+        existing = self.get_review(project_id, review_id)
+        if existing is None:
+            raise KeyError(f"Review '{review_id}' not found")
+
+        updated = existing.model_copy(update={"status": new_status})
+        now = _utc_now_iso()
+
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE reviews SET status = ?, review_json = ?, updated_at = ? WHERE review_id = ?",
+                (new_status.value, updated.model_dump_json(), now, review_id),
+            )
+            cur = conn.execute(
+                """
+                INSERT INTO review_audit_log (
+                    review_id, project_id, action, raw_ocr_text,
+                    selected_code_json, corrected_text, reviewer, reason, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    review_id,
+                    project_id,
+                    action,
+                    existing.raw_handwriting_text,
+                    json.dumps(selected_code) if selected_code is not None else None,
+                    corrected_text,
+                    reviewer,
+                    reason,
+                    now,
+                ),
+            )
+            audit_id = int(cur.lastrowid)
+            pending = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM reviews WHERE project_id = ? AND status = ?",
+                    (project_id, ValidationStatus.NEEDS_REVIEW.value),
+                ).fetchone()[0]
+            )
+            conn.execute(
+                "UPDATE projects SET pending_reviews = ?, updated_at = ? WHERE project_id = ?",
+                (pending, now, project_id),
+            )
+
+        audit_entry = ReviewAuditEntry(
+            audit_id=audit_id,
+            review_id=review_id,
+            project_id=project_id,
+            action=action,
+            raw_ocr_text=existing.raw_handwriting_text,
+            selected_code=selected_code,
+            corrected_text=corrected_text,
+            reviewer=reviewer,
+            reason=reason,
+            created_at=now,
+        )
+        return updated, audit_entry, pending
+
+    def list_review_audit(
+        self, project_id: str, review_id: str
+    ) -> list[ReviewAuditEntry]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM review_audit_log WHERE project_id = ? AND review_id = ? ORDER BY audit_id ASC",
+                (project_id, review_id),
+            ).fetchall()
+        entries: list[ReviewAuditEntry] = []
+        for r in rows:
+            sel = json.loads(r["selected_code_json"]) if r["selected_code_json"] is not None else None
+            entries.append(
+                ReviewAuditEntry(
+                    audit_id=int(r["audit_id"]),
+                    review_id=r["review_id"],
+                    project_id=r["project_id"],
+                    action=r["action"],
+                    raw_ocr_text=r["raw_ocr_text"],
+                    selected_code=sel,
+                    corrected_text=r["corrected_text"],
+                    reviewer=r["reviewer"],
+                    reason=r["reason"],
+                    created_at=r["created_at"],
+                )
+            )
+        return entries
 
     def get_project_workspace_path(self, project_id: str) -> Path:
         return self._workspace_dir(project_id)

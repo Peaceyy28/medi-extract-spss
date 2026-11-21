@@ -486,3 +486,64 @@ class ScannerWatchStartRequest(BaseModel):
     project_id: str
     watch_folder: str | None = None
     debounce_ms: int = Field(default=500, ge=50, le=5000)
+
+
+class AutoCodeRequest(BaseModel):
+    """Request payload for POST /api/v1/projects/{id}/autocode."""
+
+    variable_name: str
+    raw_text: str
+    top_k: int = Field(default=3, ge=1, le=10)
+
+
+class AutoCodeResponse(BaseModel):
+    """Response payload for semantic clinical auto-coding."""
+
+    variable_name: str
+    raw_text: str
+    normalized_text: str
+    match_tier: Literal["EXACT", "SYNONYM", "VECTOR", "QUARANTINED"]
+    matched_code: float | None = None
+    matched_label: str | None = None
+    similarity: float = Field(ge=0.0, le=1.0)
+    quarantined: bool = False
+    candidates: list[SuggestedCandidate] = Field(default_factory=list)
+
+
+class ReviewAuditEntry(BaseModel):
+    """Immutable audit log entry created when a human resolves a review item."""
+
+    audit_id: int
+    review_id: str
+    project_id: str
+    action: str
+    raw_ocr_text: str
+    selected_code: float | str | None = None
+    corrected_text: str | None = None
+    reviewer: str
+    reason: str | None = None
+    created_at: str
+
+
+class ReviewConfirmResponse(BaseModel):
+    """Response payload for POST /api/v1/projects/{id}/reviews/{rev_id}/confirm."""
+
+    ok: bool = True
+    review: ReviewItem
+    audit_entry: ReviewAuditEntry
+    pending_reviews_remaining: int
+
+
+class BatchExtractionResponse(BaseModel):
+    """Summary returned after running Vision HTR + Auto-Coder on an ingested batch."""
+
+    ok: bool = True
+    project_id: str
+    batch_id: str
+    provider_used: str
+    model_used: str
+    pages_processed: int
+    cases_added: int
+    auto_verified_fields: int
+    reviews_queued: int
+    quarantined_terms: list[str] = Field(default_factory=list)

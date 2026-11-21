@@ -2,7 +2,7 @@
 
 FastAPI + `pyreadstat` + OpenCV + Open-Weight Vision & Semantic Auto-Coder (`BAAI/bge-small-en-v1.5`).
 
-- **Current Branch / Milestones:** `D1–D3` (`feat/d3-scanner-opencv-omr`) — Core `pyreadstat` engine, SQLite Multi-Project Workspaces, `.sav`/PDF Auto-Schema Discovery, 4-Layer Multi-Clerk `.sav` Merger, 1-Click Auto-Recode, `watchdog` Hot-Folder scanner, OpenCV deskew/CLAHE/split, OMR, and WebP crops.
+- **Current Branch / Milestones:** `D1–D4` (`feat/d4-vision-htr-autocoder`) — Core `pyreadstat` engine, SQLite Workspaces, `.sav`/PDF Auto-Schema, Multi-Clerk `.sav` Merger, Auto-Recode, OpenCV/OMR/Watchdog Scanner, Open-Weight Vision HTR Provider Chain (`ollama,huggingface,groq`), and Semantic Medical Auto-Coder (`BAAI/bge-small-en-v1.5`).
 - **Architecture & Contracts:** See [`../docs/shared/01-architecture.md`](../docs/shared/01-architecture.md) and [`../docs/shared/02-api-contracts.md`](../docs/shared/02-api-contracts.md).
 
 ## Local Setup (`uv` + Python 3.12+)

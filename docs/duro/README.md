@@ -27,10 +27,10 @@
   - [x] Implement OpenCV pre-processing: page deskewing, CLAHE contrast enhancement, and multi-page splitting.
   - [x] Implement deterministic checkbox Optical Mark Recognition (OMR) and field bounding-box cropping (`crops/{batch_id}/{case_id}_{var}.webp`).
 
-- [ ] **D4 — Open-Weight Vision HTR & Semantic Medical Auto-Coder** (`feat/d4-vision-htr-autocoder`)
-  - [ ] Integrate open-weight handwriting recognition (`Qwen2.5-VL` / `Florence-2` / `TrOCR`) with token log-probability confidence scoring.
-  - [ ] Build $O(1)$ normalized synonym dictionary + `BAAI/bge-small-en-v1.5` (384-d) vector cosine matcher mapping handwritten diagnoses and treatments to official SPSS numeric codes.
-  - [ ] Route fields with $\text{Confidence} < 0.90$ to the Guided Verification queue (`GET /api/v1/projects/{id}/reviews`).
+- [x] **D4 — Open-Weight Vision HTR & Semantic Medical Auto-Coder** (`feat/d4-vision-htr-autocoder`)
+  - [x] Integrate open-weight handwriting recognition (`Qwen2.5-VL` / `Florence-2` / `TrOCR`) with token log-probability confidence scoring.
+  - [x] Build $O(1)$ normalized synonym dictionary + `BAAI/bge-small-en-v1.5` (384-d) vector cosine matcher mapping handwritten diagnoses and treatments to official SPSS numeric codes.
+  - [x] Route fields with $\text{Confidence} < 0.90$ to the Guided Verification queue (`GET /api/v1/projects/{id}/reviews`).
 
 - [ ] **D5 — Real-Time Validation Engine, Prescription Audit & $O(N)$ Data Analyst Reports** (`feat/d5-validation-analyst-reports`)
   - [ ] Implement single-variable range/codebook rules, cross-variable clinical contradiction rules (e.g., Male + Pregnancy), Diagnosis-to-Drug Clinical Plausibility Check (`VR-04-RX`), and $O(1)$ hash-set duplicate encounter detection.

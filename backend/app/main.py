@@ -14,6 +14,7 @@ from app.api.ingest import router as ingest_router
 from app.api.media import router as media_router
 from app.api.merge import router as merge_router
 from app.api.projects import router as projects_router
+from app.api.reports import router as reports_router
 from app.api.reviews import router as reviews_router
 from app.api.scanner import router as scanner_router
 from app.api.transforms import router as transforms_router
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(projects_router, prefix="/api/v1")
     app.include_router(ingest_router, prefix="/api/v1")
     app.include_router(media_router, prefix="/api/v1")
+    app.include_router(reports_router, prefix="/api/v1")
     app.include_router(reviews_router, prefix="/api/v1")
     app.include_router(scanner_router, prefix="/api/v1")
     app.include_router(merge_router, prefix="/api/v1")

@@ -32,6 +32,6 @@
   - [x] Build $O(1)$ normalized synonym dictionary + `BAAI/bge-small-en-v1.5` (384-d) vector cosine matcher mapping handwritten diagnoses and treatments to official SPSS numeric codes.
   - [x] Route fields with $\text{Confidence} < 0.90$ to the Guided Verification queue (`GET /api/v1/projects/{id}/reviews`).
 
-- [ ] **D5 — Real-Time Validation Engine, Prescription Audit & $O(N)$ Data Analyst Reports** (`feat/d5-validation-analyst-reports`)
-  - [ ] Implement single-variable range/codebook rules, cross-variable clinical contradiction rules (e.g., Male + Pregnancy), Diagnosis-to-Drug Clinical Plausibility Check (`VR-04-RX`), and $O(1)$ hash-set duplicate encounter detection.
-  - [ ] Implement single-pass $O(N)$ vectorized Data Analyst Validation Report (`POST /api/v1/projects/{id}/reports/validation`) with custom filtering (`FacilityPHC`, `LGA`, `Month`, `Issue Type`), Whipple digit-preference index, morbidity frequencies, facility rankings, and PDF/Excel export.
+- [x] **D5 — Real-Time Validation Engine, Prescription Audit & $O(N)$ Data Analyst Reports** (`feat/d5-validation-analyst-reports`)
+  - [x] Implement single-variable range/codebook rules, cross-variable clinical contradiction rules (e.g., Male + Pregnancy), Diagnosis-to-Drug Clinical Plausibility Check (`VR-04-RX`), and $O(1)$ hash-set duplicate encounter detection.
+  - [x] Implement single-pass $O(N)$ vectorized Data Analyst Validation Report (`POST /api/v1/projects/{id}/reports/validation`) with custom filtering (`FacilityPHC`, `LGA`, `Month`, `Issue Type`), Whipple digit-preference index, morbidity frequencies, facility rankings, and PDF/Excel export.

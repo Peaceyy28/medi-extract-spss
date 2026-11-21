@@ -89,15 +89,28 @@ def main() -> None:
     print("\n=== 2. Real Ollama Vision HTR (qwen2.5vl:3b on RTX 4000) ===")
     img_bytes = _make_sample_handwritten_form_webp()
     v_client = VisionHTRClient()
+    fields_to_extract = [
+        "Year",
+        "Month",
+        "FacilityPHC",
+        "OYSHIA_ID",
+        "Name",
+        "Sex",
+        "Age",
+        "Diagnosis1",
+        "Diagnosis2",
+        "Treatment1",
+    ]
     v0 = time.perf_counter()
-    v_out = v_client.extract_page(
-        img_bytes,
-        ["Year", "Month", "FacilityPHC", "OYSHIA_ID", "Name", "Sex", "Age", "Diagnosis1", "Diagnosis2", "Treatment1"],
-        page_number=1,
-    )
-    vt = time.perf_counter() - v0
-    print(f"Provider: {v_out.provider_used} ({v_out.model_used}) in {vt:.2f}s")
-    for k, pred in v_out.fields.items():
+    v_out = v_client.extract_page(img_bytes, fields_to_extract, page_number=1)
+    vt_cold = time.perf_counter() - v0
+    print(f"First/cold call — Provider: {v_out.provider_used} ({v_out.model_used}) in {vt_cold:.2f}s")
+
+    v1 = time.perf_counter()
+    v_out_warm = v_client.extract_page(img_bytes, fields_to_extract, page_number=1)
+    vt_warm = time.perf_counter() - v1
+    print(f"Warm call       — Provider: {v_out_warm.provider_used} ({v_out_warm.model_used}) in {vt_warm:.2f}s")
+    for k, pred in v_out_warm.fields.items():
         print(f"  {k}: {pred.raw_text!r} (conf={pred.ocr_confidence:.3f})")
 
     print("\n=== 3. Real Ollama Narrative Writer (llama3.2:3b on RTX 4000) ===")

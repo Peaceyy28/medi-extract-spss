@@ -186,3 +186,37 @@ def test_validation_narrative_and_dataset_cache_invalidation(
     assert rec_res.status_code == 200
     df_after, _ = store.get_dataframe_and_schema("proj_oyshia_2025")  # type: ignore[misc]
     assert "Age_Group" in df_after.columns
+
+
+def test_narrative_strips_preamble_and_uses_compact_json(client: TestClient) -> None:
+    from types import SimpleNamespace
+
+    from app.config import Settings
+    from app.services.narrative_writer import generate_report_narrative
+
+    store = get_project_store()
+    df, variables = store.get_dataframe_and_schema("proj_oyshia_2025")  # type: ignore[misc]
+    report = run_validation_report("proj_oyshia_2025", df, variables, ValidationReportFilter())
+
+    captured_prompts: list[str] = []
+
+    class FakeCompletions:
+        def create(self, **kwargs: object) -> object:
+            messages = kwargs["messages"]  # type: ignore[index]
+            captured_prompts.append(messages[1]["content"])  # type: ignore[index]
+            msg = SimpleNamespace(content="Here is a summary:\nClean rate is 95.0% across 100 cases.")
+            return SimpleNamespace(choices=[SimpleNamespace(message=msg)])
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    text, provider_used = generate_report_narrative(
+        report,
+        "OYSHIA 2025",
+        settings=Settings(vision_provider_chain="ollama"),
+        client_factory=lambda _p: FakeClient(),
+    )
+    assert provider_used == "ollama:llama3.2:3b"
+    assert text.startswith("Clean rate is 95.0%")
+    assert captured_prompts[0].startswith('REPORT_JSON:{"project":"OYSHIA 2025"')

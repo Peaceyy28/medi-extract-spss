@@ -20,10 +20,12 @@ from app.api.scanner import router as scanner_router
 from app.api.transforms import router as transforms_router
 from app.config import get_settings
 from app.services.hot_folder import get_hot_folder_watcher
+from app.services.model_warmup import start_background_warmup
 
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    start_background_warmup(get_settings())
     yield
     get_hot_folder_watcher().stop()
 

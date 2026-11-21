@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_vision_model: str = "qwen2.5vl:3b"
     ollama_narrative_model: str = "llama3.2:3b"
+    ollama_keep_alive: str = "30m"
+    ollama_warmup_on_startup: bool = True
     hf_base_url: str = "https://router.huggingface.co/v1"
     hf_token: str = ""
     hf_vision_model: str = "Qwen/Qwen2.5-VL-7B-Instruct"

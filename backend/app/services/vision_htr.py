@@ -212,10 +212,12 @@ def _downscale_image_for_vlm(
 
 
 def _default_client_factory(provider: VisionProvider) -> Any:
+    timeout_s = 180.0 if provider.name == "ollama" else 60.0
     return OpenAI(
         base_url=provider.base_url,
         api_key=provider.api_key,
-        timeout=90.0,
+        timeout=timeout_s,
+        max_retries=1,
     )
 
 

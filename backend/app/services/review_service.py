@@ -73,8 +73,8 @@ def extract_batch_into_project(
 
     new_rows: list[dict[str, Any]] = []
     quarantined_terms: list[str] = []
+    queued_reviews: list[ReviewItem] = []
     auto_verified_count = 0
-    reviews_queued = 0
     pages_processed = 0
     provider_used = ""
     model_used = ""
@@ -148,8 +148,7 @@ def extract_batch_into_project(
                         full_page_url=page.full_page_url,
                         suggested_candidates=cands,
                     )
-                    store.upsert_review(rev)
-                    reviews_queued += 1
+                    queued_reviews.append(rev)
 
             # 2) Process Vision HTR fields + Medical Auto-Coder + Confidence Gate
             patient_name = htr_out.fields.get("Name")
@@ -210,8 +209,7 @@ def extract_batch_into_project(
                             full_page_url=page.full_page_url,
                             suggested_candidates=coded.candidates,
                         )
-                        store.upsert_review(rev)
-                        reviews_queued += 1
+                        queued_reviews.append(rev)
                 else:
                     total_conf = compute_total_confidence(pred.ocr_confidence, None)
                     gate_status = evaluate_confidence_gate(total_conf, threshold=threshold)
@@ -243,8 +241,7 @@ def extract_batch_into_project(
                             full_page_url=page.full_page_url,
                             suggested_candidates=[],
                         )
-                        store.upsert_review(rev)
-                        reviews_queued += 1
+                        queued_reviews.append(rev)
 
             provenance_map[str(new_case_index)] = case_prov
             new_rows.append(row_dict)
@@ -253,7 +250,7 @@ def extract_batch_into_project(
         add_df = pd.DataFrame(new_rows)
         updated_df = pd.concat([df, add_df], ignore_index=True) if len(df) > 0 else add_df
         store.save_provenance(project_id, provenance_map)
-        pending_total = len(store.list_reviews(project_id, status=ValidationStatus.NEEDS_REVIEW.value))
+        pending_total = store.upsert_reviews_bulk(project_id, queued_reviews)
         store.save_project_dataset(
             project_id, updated_df, variables, pending_reviews=pending_total
         )
@@ -267,7 +264,7 @@ def extract_batch_into_project(
         pages_processed=pages_processed,
         cases_added=len(new_rows),
         auto_verified_fields=auto_verified_count,
-        reviews_queued=reviews_queued,
+        reviews_queued=len(queued_reviews),
         quarantined_terms=quarantined_terms,
     )
 

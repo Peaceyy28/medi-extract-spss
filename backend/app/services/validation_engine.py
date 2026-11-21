@@ -53,6 +53,29 @@ _MALARIA_DX_CODES: set[float] = {4.0, 73.0}
 _MALARIA_DX_RE = re.compile(r"malaria", re.I)
 
 
+def _safe_int_token(raw: Any) -> str:
+    """Parse integer-like scalar into normalized string without failing on dirty text."""
+    if raw is None:
+        return ""
+    try:
+        if pd.isna(raw):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    if isinstance(raw, (int, np.integer)):
+        return str(int(raw))
+    if isinstance(raw, (float, np.floating)):
+        fval = float(raw)
+        return "" if math.isnan(fval) or math.isinf(fval) else str(int(fval))
+    text = str(raw).strip()
+    if not text or text.lower() == "nan":
+        return ""
+    try:
+        return str(int(float(text)))
+    except (TypeError, ValueError):
+        return text
+
+
 def compute_whipple_index(ages: pd.Series) -> float | None:
     """Compute Whipple's digit-preference index over ages 23-62 (100 = no heaping, 500 = extreme)."""
     num = pd.to_numeric(ages, errors="coerce").dropna()
@@ -183,6 +206,17 @@ def run_validation_report(
     flagged_cases: set[int] = set()
     contradictions: list[ContradictionItem] = []
 
+    num_cache: dict[str, pd.Series] = {}
+    if total_cases > 0:
+        numeric_candidates: list[str] = [
+            v.name for v in variables if v.type != VariableType.STRING and v.name in work.columns
+        ]
+        for extra_col in ("Age", "Sex", *diag_cols, *treat_cols):
+            if extra_col in work.columns and extra_col not in numeric_candidates:
+                numeric_candidates.append(extra_col)
+        for cname in numeric_candidates:
+            num_cache[cname] = pd.to_numeric(work[cname], errors="coerce")
+
     # 1. VR-00: Vectorized Missingness Audit across all variables
     missingness_audit: list[MissingnessItem] = []
     if total_cases > 0:
@@ -193,7 +227,10 @@ def run_validation_report(
             if var.type == VariableType.STRING:
                 miss_mask = col_series.isna() | (col_series.astype(str).str.strip() == "")
             else:
-                miss_mask = pd.to_numeric(col_series, errors="coerce").isna()
+                num_col = num_cache.get(var.name)
+                if num_col is None:
+                    num_col = pd.to_numeric(col_series, errors="coerce")
+                miss_mask = num_col.isna()
 
             miss_count = int(miss_mask.sum())
             if miss_count > 0:
@@ -230,8 +267,8 @@ def run_validation_report(
     age_outliers = 0
     whipple_idx: float | None = None
 
-    if "Age" in work.columns and total_cases > 0:
-        ages = pd.to_numeric(work["Age"], errors="coerce")
+    if "Age" in num_cache and total_cases > 0:
+        ages = num_cache["Age"]
         valid_ages = ages.dropna()
         if len(valid_ages) > 0:
             age_mean = round(float(valid_ages.mean()), 2)
@@ -257,8 +294,8 @@ def run_validation_report(
                 )
 
     sex_distribution: dict[str, int] = {}
-    if "Sex" in work.columns and total_cases > 0:
-        sex_num = pd.to_numeric(work["Sex"], errors="coerce")
+    if "Sex" in num_cache and total_cases > 0:
+        sex_num = num_cache["Sex"]
         counts = sex_num.dropna().value_counts()
         for code_val, cnt in counts.items():
             lbl = _label_for_code(sex_labels, float(code_val))
@@ -266,10 +303,10 @@ def run_validation_report(
 
     # 3. VR-02: Cross-Variable Clinical Contradiction (Male + Female-Only Diagnosis)
     female_codes = _codes_matching(diag_labels, FEMALE_ONLY_DIAGNOSIS_CODES, _FEMALE_DX_PATTERN)
-    if "Sex" in work.columns and diag_cols and total_cases > 0:
-        is_male = pd.to_numeric(work["Sex"], errors="coerce") == 1.0
+    if "Sex" in num_cache and diag_cols and total_cases > 0:
+        is_male = num_cache["Sex"] == 1.0
         for dcol in diag_cols:
-            d_num = pd.to_numeric(work[dcol], errors="coerce")
+            d_num = num_cache[dcol]
             bad_mask = is_male & d_num.isin(female_codes)
             if bad_mask.any():
                 for ci, code_val in zip(
@@ -289,7 +326,7 @@ def run_validation_report(
     # 4. VR-03: Allowed Codebook Membership
     if total_cases > 0:
         for var in variables:
-            if var.name not in work.columns or not var.value_labels or var.type != VariableType.NUMERIC:
+            if var.name not in num_cache or not var.value_labels or var.type != VariableType.NUMERIC:
                 continue
             allowed = set()
             for k in var.value_labels:
@@ -299,7 +336,7 @@ def run_validation_report(
                     continue
             if not allowed:
                 continue
-            col_num = pd.to_numeric(work[var.name], errors="coerce")
+            col_num = num_cache[var.name]
             bad_code_mask = col_num.notna() & ~col_num.isin(allowed)
             if bad_code_mask.any():
                 for ci, bad_val in zip(
@@ -316,7 +353,17 @@ def run_validation_report(
                     )
 
     # 5. VR-04-RX: Diagnosis-to-Drug Clinical Plausibility Check (Prescription Audit)
-    if diag_cols and treat_cols and total_cases > 0:
+    diag_frame = (
+        pd.DataFrame({c: num_cache[c] for c in diag_cols}, index=work.index)
+        if diag_cols and total_cases > 0
+        else None
+    )
+    treat_frame = (
+        pd.DataFrame({c: num_cache[c] for c in treat_cols}, index=work.index)
+        if treat_cols and total_cases > 0
+        else None
+    )
+    if diag_frame is not None and treat_frame is not None:
         antidiab_rx = _codes_matching(treat_labels, _ANTIDIABETIC_CODES, _ANTIDIABETIC_RX_RE)
         diab_dx = _codes_matching(diag_labels, _DIABETIC_DX_CODES, _DIABETIC_DX_RE)
 
@@ -325,9 +372,6 @@ def run_validation_report(
 
         antimal_rx = _codes_matching(treat_labels, _ANTIMALARIAL_CODES, _ANTIMALARIAL_RX_RE)
         malaria_dx = _codes_matching(diag_labels, _MALARIA_DX_CODES, _MALARIA_DX_RE)
-
-        diag_frame = work[diag_cols].apply(pd.to_numeric, errors="coerce")
-        treat_frame = work[treat_cols].apply(pd.to_numeric, errors="coerce")
 
         bad_diab = treat_frame.isin(antidiab_rx).any(axis=1) & ~diag_frame.isin(diab_dx).any(axis=1)
         bad_htn = treat_frame.isin(antihtn_rx).any(axis=1) & ~diag_frame.isin(htn_dx).any(axis=1)
@@ -389,8 +433,8 @@ def run_validation_report(
             oid = "" if oid_raw is None or pd.isna(oid_raw) else str(oid_raw).strip()
             if not oid:
                 continue
-            yr_s = "" if yr_raw is None or pd.isna(yr_raw) else str(int(float(yr_raw)))
-            mo_s = "" if mo_raw is None or pd.isna(mo_raw) else str(int(float(mo_raw)))
+            yr_s = _safe_int_token(yr_raw)
+            mo_s = _safe_int_token(mo_raw)
             fac_s = "" if fac_raw is None or pd.isna(fac_raw) else str(fac_raw).strip()
             digest = hashlib.sha256(f"{oid}|{yr_s}|{mo_s}|{fac_s}".lower().encode("utf-8")).hexdigest()
             if digest in seen_hashes:
@@ -410,7 +454,7 @@ def run_validation_report(
     top_diagnoses: list[TopDiagnosisItem] = []
     if diag_cols and total_cases > 0:
         stacked_diag = pd.concat(
-            [pd.to_numeric(work[c], errors="coerce") for c in diag_cols],
+            [num_cache[c] for c in diag_cols],
             ignore_index=True,
         ).dropna()
         if len(stacked_diag) > 0:
@@ -427,8 +471,8 @@ def run_validation_report(
                 )
 
     mean_drugs = 0.0
-    if treat_cols and total_cases > 0:
-        drug_counts = work[treat_cols].apply(pd.to_numeric, errors="coerce").notna().sum(axis=1)
+    if treat_frame is not None:
+        drug_counts = treat_frame.notna().sum(axis=1)
         mean_drugs = round(float(drug_counts.mean()), 2)
 
     # 8. Health Facility Performance Ranking

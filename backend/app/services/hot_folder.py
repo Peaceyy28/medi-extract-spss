@@ -21,6 +21,18 @@ _LOGGER = logging.getLogger(__name__)
 SUPPORTED_SCAN_EXTENSIONS = {".pdf", ".tif", ".tiff", ".png", ".jpg", ".jpeg"}
 
 
+def _move_with_retry(src: Path, dest: Path, attempts: int = 4, delay_s: float = 0.2) -> None:
+    """Retry file move across brief Windows Explorer / antivirus handles."""
+    for attempt in range(attempts):
+        try:
+            shutil.move(str(src), str(dest))
+            return
+        except PermissionError:
+            if attempt >= attempts - 1:
+                raise
+            time.sleep(delay_s)
+
+
 def wait_for_file_stability(
     path: Path, stability_ms: int = 500, max_wait_s: float = 10.0
 ) -> bool:
@@ -177,7 +189,7 @@ class HotFolderWatcher:
             if dest.exists():
                 stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
                 dest = processed_dir / f"{path.stem}_{stamp}{path.suffix}"
-            shutil.move(str(path), str(dest))
+            _move_with_retry(path, dest)
 
             with self._lock:
                 self._files_processed_count += 1

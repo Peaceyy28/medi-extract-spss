@@ -111,3 +111,19 @@ def test_sps_syntax_and_other_exports(tmp_path: Path) -> None:
     dta_df, _ = pyreadstat.read_dta(str(dta_path))
     assert len(dta_df) == 100
     assert "Name" not in dta_df.columns
+
+
+def test_anonymize_preserves_longitudinal_pseudonyms(tmp_path: Path) -> None:
+    df, variables, _ = read_sav_file(SYNTHETIC_SAV)
+    # Give row 0 and row 2 identical enrollee IDs and row 1 a distinct ID
+    sample = df.iloc[:3].copy()
+    sample["OYSHIA_ID"] = ["SYN-REPEAT-01", "SYN-UNIQUE-02", "SYN-REPEAT-01"]
+
+    anon_path = tmp_path / "longitudinal_anon.sav"
+    write_sav_file(sample, variables, anon_path, anonymize=True)
+    df_anon, _, _ = read_sav_file(anon_path)
+
+    ids = df_anon["OYSHIA_ID"].tolist()
+    assert ids[0] == "ANON_00001"
+    assert ids[1] == "ANON_00002"
+    assert ids[2] == "ANON_00001"

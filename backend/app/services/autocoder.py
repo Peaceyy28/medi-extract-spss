@@ -126,15 +126,19 @@ class FastEmbedEmbedder:
         self.model_name = model_name
         self.cache_dir = cache_dir
         self._model = None
+        self._lock = threading.Lock()
 
     def _ensure_model(self) -> None:
-        if self._model is None:
-            from fastembed import TextEmbedding
+        if self._model is not None:
+            return
+        with self._lock:
+            if self._model is None:
+                from fastembed import TextEmbedding
 
-            kwargs: dict[str, object] = {"threads": 4}
-            if self.cache_dir:
-                kwargs["cache_dir"] = self.cache_dir
-            self._model = TextEmbedding(self.model_name, **kwargs)  # type: ignore[arg-type]
+                kwargs: dict[str, object] = {"threads": 4}
+                if self.cache_dir:
+                    kwargs["cache_dir"] = self.cache_dir
+                self._model = TextEmbedding(self.model_name, **kwargs)  # type: ignore[arg-type]
 
     def embed(self, texts: list[str]) -> np.ndarray:
         if not texts:
@@ -211,33 +215,36 @@ class DeterministicStubEmbedder:
         return mat / np.maximum(norms, 1e-12)
 
 
+_EMBEDDER_LOCK = threading.Lock()
 _EMBEDDER_INSTANCE: Embedder | None = None
 
 
 def get_embedder(settings: Settings | None = None) -> Embedder:
     """Return configured singleton Embedder without triggering downloads unnecessarily."""
     global _EMBEDDER_INSTANCE
-    if _EMBEDDER_INSTANCE is not None:
-        return _EMBEDDER_INSTANCE
+    with _EMBEDDER_LOCK:
+        if _EMBEDDER_INSTANCE is not None:
+            return _EMBEDDER_INSTANCE
 
-    cfg = settings or get_settings()
-    backend = cfg.embedding_backend.strip().lower()
-    if backend == "stub":
-        _EMBEDDER_INSTANCE = DeterministicStubEmbedder()
-    elif backend == "hf_api":
-        _EMBEDDER_INSTANCE = HFApiEmbedder(token=cfg.hf_token, model_name=cfg.embedding_model)
-    else:
-        _EMBEDDER_INSTANCE = FastEmbedEmbedder(
-            model_name=cfg.embedding_model,
-            cache_dir=cfg.resolved_fastembed_cache_path(),
-        )
-    return _EMBEDDER_INSTANCE
+        cfg = settings or get_settings()
+        backend = cfg.embedding_backend.strip().lower()
+        if backend == "stub":
+            _EMBEDDER_INSTANCE = DeterministicStubEmbedder()
+        elif backend == "hf_api":
+            _EMBEDDER_INSTANCE = HFApiEmbedder(token=cfg.hf_token, model_name=cfg.embedding_model)
+        else:
+            _EMBEDDER_INSTANCE = FastEmbedEmbedder(
+                model_name=cfg.embedding_model,
+                cache_dir=cfg.resolved_fastembed_cache_path(),
+            )
+        return _EMBEDDER_INSTANCE
 
 
 def reset_embedder_cache() -> None:
     """Clear cached embedder singleton (used in tests)."""
     global _EMBEDDER_INSTANCE
-    _EMBEDDER_INSTANCE = None
+    with _EMBEDDER_LOCK:
+        _EMBEDDER_INSTANCE = None
 
 
 class MedicalAutoCoder:
@@ -253,6 +260,7 @@ class MedicalAutoCoder:
         self._norm_indexes: dict[str, dict[str, tuple[float, str]]] = {}
         self._label_lists: dict[str, list[tuple[float, str, str]]] = {}
         self._matrix_cache: dict[str, np.ndarray] = {}
+        self._matrix_lock = threading.Lock()
 
         for var in variables:
             if not var.value_labels:
@@ -272,11 +280,15 @@ class MedicalAutoCoder:
                 self._label_lists[var.name] = entries
 
     def _get_matrix(self, variable_name: str) -> np.ndarray:
-        if variable_name not in self._matrix_cache:
+        with self._matrix_lock:
+            cached = self._matrix_cache.get(variable_name)
+            if cached is not None:
+                return cached
             entries = self._label_lists[variable_name]
             texts = [lbl for _, lbl, _ in entries]
-            self._matrix_cache[variable_name] = self._embedder.embed(texts)
-        return self._matrix_cache[variable_name]
+            mat = self._embedder.embed(texts)
+            self._matrix_cache[variable_name] = mat
+            return mat
 
     def code_term(
         self,
@@ -303,7 +315,38 @@ class MedicalAutoCoder:
                 candidates=[],
             )
 
-        # Tier 2 pre-scoring so candidate list is always populated cleanly
+        # Tier 1a: True O(1) exact normalized match (zero embedding or fuzzy work)
+        if norm in norm_map:
+            exact_code, exact_label = norm_map[norm]
+            return AutoCodeResponse(
+                variable_name=variable_name,
+                raw_text=raw_text,
+                normalized_text=norm,
+                match_tier="EXACT",
+                matched_code=exact_code,
+                matched_label=exact_label,
+                similarity=1.0,
+                quarantined=False,
+                candidates=[SuggestedCandidate(code=exact_code, label=exact_label, similarity=1.0)],
+            )
+
+        # Tier 1b: True O(1) clinical synonym map lookup (zero embedding or fuzzy work)
+        syn_target = CLINICAL_SYNONYMS.get(norm)
+        if syn_target and syn_target in norm_map:
+            syn_code, syn_label = norm_map[syn_target]
+            return AutoCodeResponse(
+                variable_name=variable_name,
+                raw_text=raw_text,
+                normalized_text=norm,
+                match_tier="SYNONYM",
+                matched_code=syn_code,
+                matched_label=syn_label,
+                similarity=0.96,
+                quarantined=False,
+                candidates=[SuggestedCandidate(code=syn_code, label=syn_label, similarity=0.96)],
+            )
+
+        # Tier 2: Semantic embedding + lexical WRatio scoring for unseen clinical variants
         matrix = self._get_matrix(variable_name)
         q_vec = self._embedder.embed([norm])[0]
         cos_scores = matrix @ q_vec
@@ -320,41 +363,6 @@ class MedicalAutoCoder:
             SuggestedCandidate(code=c, label=lbl, similarity=sim)
             for sim, c, lbl in scored[:top_k]
         ]
-
-        # Tier 1a: O(1) exact normalized match
-        if norm in norm_map:
-            exact_code, exact_label = norm_map[norm]
-            filtered = [cand for cand in top_candidates if cand.code != exact_code]
-            cands = [SuggestedCandidate(code=exact_code, label=exact_label, similarity=1.0), *filtered][:top_k]
-            return AutoCodeResponse(
-                variable_name=variable_name,
-                raw_text=raw_text,
-                normalized_text=norm,
-                match_tier="EXACT",
-                matched_code=exact_code,
-                matched_label=exact_label,
-                similarity=1.0,
-                quarantined=False,
-                candidates=cands,
-            )
-
-        # Tier 1b: O(1) clinical synonym map lookup
-        syn_target = CLINICAL_SYNONYMS.get(norm)
-        if syn_target and syn_target in norm_map:
-            syn_code, syn_label = norm_map[syn_target]
-            filtered = [cand for cand in top_candidates if cand.code != syn_code]
-            cands = [SuggestedCandidate(code=syn_code, label=syn_label, similarity=0.96), *filtered][:top_k]
-            return AutoCodeResponse(
-                variable_name=variable_name,
-                raw_text=raw_text,
-                normalized_text=norm,
-                match_tier="SYNONYM",
-                matched_code=syn_code,
-                matched_label=syn_label,
-                similarity=0.96,
-                quarantined=False,
-                candidates=cands,
-            )
 
         best_sim, best_code, best_label = scored[0]
         if best_sim < quarantine_threshold:

@@ -158,6 +158,7 @@ def test_batch_extract_review_confirm_spss_commit_and_immutable_audit(
     assert cases_data["total_cases"] == 101
     new_row = cases_data["rows"][0]
     assert new_row["case_index"] == 101
+    assert new_row["validation_status"] == "NEEDS_REVIEW"
     assert new_row["values"]["Sex"] == 2.0
     assert new_row["values"]["Diagnosis1"] == 2.0
     assert new_row["values"]["Treatment1"] == 14.0
@@ -189,8 +190,21 @@ def test_batch_extract_review_confirm_spss_commit_and_immutable_audit(
     assert conf_body["audit_entry"]["selected_code"] == 1.0
 
     # Verify SPSS Data View row updated to Diagnosis2 = 1.0 & audit trail persisted
-    row_after = client.get("/api/v1/projects/proj_oyshia_2025/cases?offset=100&limit=5").json()["rows"][0]
-    assert row_after["values"]["Diagnosis2"] == 1.0
+    row_after_diag2 = client.get("/api/v1/projects/proj_oyshia_2025/cases?offset=100&limit=5").json()["rows"][0]
+    assert row_after_diag2["values"]["Diagnosis2"] == 1.0
+
+    # Resolve any remaining queued fields on Case #101 (e.g., LGA) -> row transitions to AUTO_VERIFIED
+    for extra_rev in revs:
+        if extra_rev["review_id"] == diag2_rev["review_id"]:
+            continue
+        extra_res = client.post(
+            f"/api/v1/projects/proj_oyshia_2025/reviews/{extra_rev['review_id']}/confirm",
+            json={"action": "confirm", "reviewer": "clerk_duro"},
+        )
+        assert extra_res.status_code == 200
+
+    row_final = client.get("/api/v1/projects/proj_oyshia_2025/cases?offset=100&limit=5").json()["rows"][0]
+    assert row_final["validation_status"] == "AUTO_VERIFIED"
 
     audit_res = client.get(
         f"/api/v1/projects/proj_oyshia_2025/reviews/{diag2_rev['review_id']}/audit"
@@ -218,10 +232,20 @@ def test_project_autocoder_cache_reuses_embeddings() -> None:
     emb = CountingEmbedder()
 
     c1 = get_project_autocoder("proj_oyshia_2025", project.variables, embedder=emb)
+    # Tier 1 EXACT and SYNONYM short-circuit in O(1) without calling embed()
+    exact_hit = c1.code_term("Diagnosis1", "Malaria")
+    assert exact_hit.match_tier == "EXACT"
+    syn_hit = c1.code_term("Diagnosis1", "HTN")
+    assert syn_hit.match_tier == "SYNONYM"
+    assert emb.calls == 0
+
+    # First Tier 2 vector lookup embeds the codebook matrix + query
     c1.code_term("Diagnosis1", "Mss wrist pain (?trauma)")
     calls_after_first = emb.calls
+    assert calls_after_first == 2
 
+    # Second Tier 2 vector lookup reuses the cached project autocoder & codebook matrix
     c2 = get_project_autocoder("proj_oyshia_2025", project.variables, embedder=emb)
     assert c1 is c2
-    c2.code_term("Diagnosis1", "HTN")
-    assert emb.calls == calls_after_first + 1  # only query embedded, codebook matrix reused!
+    c2.code_term("Diagnosis1", "elevated blood sugar")
+    assert emb.calls == calls_after_first + 1

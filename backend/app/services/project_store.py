@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import sqlite3
 import threading
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -40,6 +42,7 @@ from app.services.spss_engine import (
 )
 
 DEFAULT_PROJECT_ID = "proj_oyshia_2025"
+_SAFE_PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 def _utc_now_iso() -> str:
@@ -73,7 +76,10 @@ class ProjectWorkspaceManager:
         self._projects_root = self._data_dir / "projects"
         self._projects_root.mkdir(parents=True, exist_ok=True)
         self._cache_lock = threading.Lock()
+        self._id_lock = threading.Lock()
+        self._project_locks: dict[str, threading.RLock] = {}
         self._dataset_cache: dict[str, tuple[int, pd.DataFrame]] = {}
+        self._provenance_cache: dict[str, tuple[int, dict[str, dict[str, Any]]]] = {}
         self._init_db()
         self._seed_default_project()
 
@@ -193,8 +199,25 @@ class ProjectWorkspaceManager:
                 "CREATE INDEX IF NOT EXISTS idx_audit_proj_rev ON review_audit_log(project_id, review_id)"
             )
 
+    def _validate_project_id(self, project_id: str) -> str:
+        if not _SAFE_PROJECT_ID_RE.match(project_id) or ".." in project_id:
+            raise ValueError(f"Invalid project identifier: {project_id!r}")
+        return project_id
+
+    def _project_lock(self, project_id: str) -> threading.RLock:
+        with self._cache_lock:
+            lock = self._project_locks.get(project_id)
+            if lock is None:
+                lock = threading.RLock()
+                self._project_locks[project_id] = lock
+            return lock
+
     def _workspace_dir(self, project_id: str) -> Path:
-        ws = self._projects_root / project_id
+        safe_id = self._validate_project_id(project_id)
+        root = self._projects_root.resolve()
+        ws = (root / safe_id).resolve()
+        if ws.parent != root:
+            raise ValueError(f"Invalid project workspace path: {project_id!r}")
         ws.mkdir(parents=True, exist_ok=True)
         return ws
 
@@ -268,18 +291,19 @@ class ProjectWorkspaceManager:
     def _next_project_id(self) -> str:
         year = datetime.now(timezone.utc).year
         prefix = f"PRJ-{year}-"
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT project_id FROM projects WHERE project_id LIKE ?",
-                (f"{prefix}%",),
-            ).fetchall()
-        max_seq = 0
-        for row in rows:
-            pid = row["project_id"]
-            tail = pid[len(prefix) :]
-            if tail.isdigit():
-                max_seq = max(max_seq, int(tail))
-        return f"{prefix}{max_seq + 1:03d}"
+        with self._id_lock:
+            with self._connect() as conn:
+                rows = conn.execute(
+                    "SELECT project_id FROM projects WHERE project_id LIKE ?",
+                    (f"{prefix}%",),
+                ).fetchall()
+            max_seq = 0
+            for row in rows:
+                pid = row["project_id"]
+                tail = pid[len(prefix) :]
+                if tail.isdigit():
+                    max_seq = max(max_seq, int(tail))
+            return f"{prefix}{max_seq + 1:03d}"
 
     def _row_to_project(self, row: sqlite3.Row) -> ProjectSchema:
         vars_raw = json.loads(row["variables_json"])
@@ -310,20 +334,27 @@ class ProjectWorkspaceManager:
         return self._row_to_project(row) if row is not None else None
 
     def delete_project(self, project_id: str) -> bool:
-        with self._cache_lock:
-            self._dataset_cache.pop(project_id, None)
-        with self._connect() as conn:
-            cur = conn.execute("DELETE FROM projects WHERE project_id = ?", (project_id,))
-            conn.execute("DELETE FROM merge_sessions WHERE project_id = ?", (project_id,))
-            conn.execute("DELETE FROM review_audit_log WHERE project_id = ?", (project_id,))
-            conn.execute("DELETE FROM reviews WHERE project_id = ?", (project_id,))
-            conn.execute("DELETE FROM ingested_documents WHERE project_id = ?", (project_id,))
-            conn.execute("DELETE FROM batches WHERE project_id = ?", (project_id,))
-            deleted = cur.rowcount > 0
-        ws = self._projects_root / project_id
-        if ws.exists():
-            shutil.rmtree(ws, ignore_errors=True)
-        return deleted
+        safe_id = self._validate_project_id(project_id)
+        root = self._projects_root.resolve()
+        ws = (root / safe_id).resolve()
+        if ws.parent != root:
+            raise ValueError(f"Invalid project workspace path: {project_id!r}")
+
+        with self._project_lock(safe_id):
+            with self._cache_lock:
+                self._dataset_cache.pop(safe_id, None)
+                self._provenance_cache.pop(safe_id, None)
+            with self._connect() as conn:
+                cur = conn.execute("DELETE FROM projects WHERE project_id = ?", (safe_id,))
+                conn.execute("DELETE FROM merge_sessions WHERE project_id = ?", (safe_id,))
+                conn.execute("DELETE FROM review_audit_log WHERE project_id = ?", (safe_id,))
+                conn.execute("DELETE FROM reviews WHERE project_id = ?", (safe_id,))
+                conn.execute("DELETE FROM ingested_documents WHERE project_id = ?", (safe_id,))
+                conn.execute("DELETE FROM batches WHERE project_id = ?", (safe_id,))
+                deleted = cur.rowcount > 0
+            if ws.exists():
+                shutil.rmtree(ws, ignore_errors=True)
+            return deleted
 
     def create_project_from_sav(
         self,
@@ -452,9 +483,10 @@ class ProjectWorkspaceManager:
             )
         return self.get_project(project_id)  # type: ignore[return-value]
 
-    def get_dataframe_and_schema(
+    def _get_dataframe_cached_readonly(
         self, project_id: str
     ) -> tuple[pd.DataFrame, list[VariableSchema]] | None:
+        """Return cached read-only DataFrame view (callers MUST NOT mutate returned frame)."""
         project = self.get_project(project_id)
         if project is None:
             return None
@@ -466,14 +498,23 @@ class ProjectWorkspaceManager:
             with self._cache_lock:
                 cached = self._dataset_cache.get(project_id)
                 if cached is not None and cached[0] == mtime_ns:
-                    return cached[1].copy(deep=True), project.variables
+                    return cached[1], project.variables
 
             df, _, _ = read_sav_file(dataset_path)
             with self._cache_lock:
                 self._dataset_cache[project_id] = (mtime_ns, df)
-            return df.copy(deep=True), project.variables
+            return df, project.variables
 
         return empty_dataframe_from_schema(project.variables), project.variables
+
+    def get_dataframe_and_schema(
+        self, project_id: str
+    ) -> tuple[pd.DataFrame, list[VariableSchema]] | None:
+        loaded = self._get_dataframe_cached_readonly(project_id)
+        if loaded is None:
+            return None
+        df, variables = loaded
+        return df.copy(deep=True), variables
 
     def save_project_dataset(
         self,
@@ -488,33 +529,34 @@ class ProjectWorkspaceManager:
 
         ws = self._workspace_dir(project_id)
         dataset_path = ws / "dataset.sav"
-        with self._cache_lock:
-            self._dataset_cache.pop(project_id, None)
-        if len(df) > 0:
-            write_sav_file(df, variables, dataset_path, anonymize=False)
-            mtime_ns = dataset_path.stat().st_mtime_ns
+        with self._project_lock(project_id):
             with self._cache_lock:
-                self._dataset_cache[project_id] = (mtime_ns, df.copy(deep=True))
-        elif dataset_path.is_file():
-            dataset_path.unlink()
+                self._dataset_cache.pop(project_id, None)
+            if len(df) > 0:
+                write_sav_file(df, variables, dataset_path, anonymize=False)
+                mtime_ns = dataset_path.stat().st_mtime_ns
+                with self._cache_lock:
+                    self._dataset_cache[project_id] = (mtime_ns, df.copy(deep=True))
+            elif dataset_path.is_file():
+                dataset_path.unlink()
 
-        now = _utc_now_iso()
-        new_pending = project.pending_reviews if pending_reviews is None else pending_reviews
-        with self._connect() as conn:
-            conn.execute(
-                """
-                UPDATE projects
-                SET total_cases = ?, pending_reviews = ?, variables_json = ?, updated_at = ?
-                WHERE project_id = ?
-                """,
-                (
-                    len(df),
-                    int(new_pending),
-                    json.dumps([v.model_dump() for v in variables]),
-                    now,
-                    project_id,
-                ),
-            )
+            now = _utc_now_iso()
+            new_pending = project.pending_reviews if pending_reviews is None else pending_reviews
+            with self._connect() as conn:
+                conn.execute(
+                    """
+                    UPDATE projects
+                    SET total_cases = ?, pending_reviews = ?, variables_json = ?, updated_at = ?
+                    WHERE project_id = ?
+                    """,
+                    (
+                        len(df),
+                        int(new_pending),
+                        json.dumps([v.model_dump() for v in variables]),
+                        now,
+                        project_id,
+                    ),
+                )
         return self.get_project(project_id)  # type: ignore[return-value]
 
     def get_cases_page(
@@ -526,7 +568,7 @@ class ProjectWorkspaceManager:
         sort_by: str | None = None,
         sort_dir: Literal["asc", "desc"] = "asc",
     ) -> CasesPageResponse | None:
-        loaded = self.get_dataframe_and_schema(project_id)
+        loaded = self._get_dataframe_cached_readonly(project_id)
         if loaded is None:
             return None
 
@@ -541,32 +583,50 @@ class ProjectWorkspaceManager:
             )
 
         var_map = {v.name: v for v in variables}
-        work_df = df.copy()
-        work_df["__case_index"] = range(1, len(work_df) + 1)
+        positions = np.arange(len(df), dtype=np.int64)
 
         if search:
             needle = search.strip().lower()
             if needle:
-                mask = work_df.drop(columns=["__case_index"]).apply(
-                    lambda col: col.astype(str).str.lower().str.contains(needle, regex=False, na=False)
-                ).any(axis=1)
-                work_df = work_df[mask]
+                mask = np.zeros(len(df), dtype=bool)
+                for col in df.columns:
+                    col_mask = (
+                        df[col]
+                        .astype(str)
+                        .str.lower()
+                        .str.contains(needle, regex=False, na=False)
+                        .to_numpy(dtype=bool)
+                    )
+                    mask |= col_mask
+                positions = positions[mask]
 
-        if sort_by and sort_by in work_df.columns:
-            work_df = work_df.sort_values(
-                by=sort_by,
+        if sort_by and sort_by in df.columns and len(positions) > 0:
+            sort_series = df[sort_by].iloc[positions].reset_index(drop=True)
+            sorted_idx = sort_series.sort_values(
                 ascending=(sort_dir == "asc"),
                 kind="mergesort",
                 na_position="last",
-            )
+            ).index.to_numpy()
+            positions = positions[sorted_idx]
 
-        total_matched = len(work_df)
-        sliced = work_df.iloc[offset : offset + limit]
+        total_matched = int(len(positions))
+        page_positions = positions[offset : offset + limit]
+        page_case_indices = [int(pos) + 1 for pos in page_positions.tolist()]
+        sliced = df.iloc[page_positions]
         provenance_all = self.load_provenance(project_id)
 
+        pending_case_set: set[int] = set()
+        if page_case_indices:
+            placeholders = ",".join("?" for _ in page_case_indices)
+            with self._connect() as conn:
+                rev_rows = conn.execute(
+                    f"SELECT DISTINCT case_index FROM reviews WHERE project_id = ? AND status = ? AND case_index IN ({placeholders})",
+                    (project_id, ValidationStatus.NEEDS_REVIEW.value, *page_case_indices),
+                ).fetchall()
+            pending_case_set = {int(r["case_index"]) for r in rev_rows}
+
         rows: list[CaseRow] = []
-        for record in sliced.to_dict(orient="records"):
-            case_idx = int(record.pop("__case_index"))
+        for case_idx, record in zip(page_case_indices, sliced.to_dict(orient="records")):
             values: dict[str, Any] = {}
             labels: dict[str, str] = {}
             for col, raw_val in record.items():
@@ -588,7 +648,11 @@ class ProjectWorkspaceManager:
                     values=values,
                     labels=labels,
                     provenance=parsed_prov,
-                    validation_status=ValidationStatus.AUTO_VERIFIED,
+                    validation_status=(
+                        ValidationStatus.NEEDS_REVIEW
+                        if case_idx in pending_case_set
+                        else ValidationStatus.AUTO_VERIFIED
+                    ),
                 )
             )
 
@@ -603,49 +667,79 @@ class ProjectWorkspaceManager:
     def load_provenance(self, project_id: str) -> dict[str, dict[str, Any]]:
         prov_path = self._workspace_dir(project_id) / "provenance.json"
         if not prov_path.is_file():
+            with self._cache_lock:
+                self._provenance_cache.pop(project_id, None)
             return {}
-        return json.loads(prov_path.read_text(encoding="utf-8"))
+        mtime_ns = prov_path.stat().st_mtime_ns
+        with self._cache_lock:
+            cached = self._provenance_cache.get(project_id)
+            if cached is not None and cached[0] == mtime_ns:
+                return dict(cached[1])
+        data = json.loads(prov_path.read_text(encoding="utf-8"))
+        with self._cache_lock:
+            self._provenance_cache[project_id] = (mtime_ns, data)
+        return dict(data)
 
     def save_provenance(
         self, project_id: str, provenance_map: dict[str, dict[str, Any]]
     ) -> None:
         prov_path = self._workspace_dir(project_id) / "provenance.json"
-        prov_path.write_text(json.dumps(provenance_map, indent=2), encoding="utf-8")
+        tmp_path = prov_path.with_name(f".provenance.{uuid.uuid4().hex[:8]}.tmp.json")
+        with self._project_lock(project_id):
+            try:
+                tmp_path.write_text(json.dumps(provenance_map, indent=2), encoding="utf-8")
+                os.replace(tmp_path, prov_path)
+            except Exception:
+                tmp_path.unlink(missing_ok=True)
+                raise
+            mtime_ns = prov_path.stat().st_mtime_ns
+            with self._cache_lock:
+                self._provenance_cache[project_id] = (mtime_ns, dict(provenance_map))
 
-    def upsert_review(self, review: ReviewItem) -> None:
+    def upsert_reviews_bulk(
+        self, project_id: str, reviews: list[ReviewItem]
+    ) -> int:
+        """Persist multiple review items in one transaction and sync pending_reviews."""
         now = _utc_now_iso()
         with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO reviews (
-                    review_id, project_id, batch_id, case_index, variable_name,
-                    status, review_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(review_id) DO UPDATE SET
-                    status = excluded.status,
-                    review_json = excluded.review_json,
-                    updated_at = excluded.updated_at
-                """,
-                (
-                    review.review_id,
-                    review.project_id,
-                    review.batch_id,
-                    review.case_index,
-                    review.variable_name,
-                    review.status.value,
-                    review.model_dump_json(),
-                    now,
-                    now,
-                ),
+            for review in reviews:
+                conn.execute(
+                    """
+                    INSERT INTO reviews (
+                        review_id, project_id, batch_id, case_index, variable_name,
+                        status, review_json, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(review_id) DO UPDATE SET
+                        status = excluded.status,
+                        review_json = excluded.review_json,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        review.review_id,
+                        review.project_id,
+                        review.batch_id,
+                        review.case_index,
+                        review.variable_name,
+                        review.status.value,
+                        review.model_dump_json(),
+                        now,
+                        now,
+                    ),
+                )
+            pending = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM reviews WHERE project_id = ? AND status = ?",
+                    (project_id, ValidationStatus.NEEDS_REVIEW.value),
+                ).fetchone()[0]
             )
-            pending = conn.execute(
-                "SELECT COUNT(*) FROM reviews WHERE project_id = ? AND status = ?",
-                (review.project_id, ValidationStatus.NEEDS_REVIEW.value),
-            ).fetchone()[0]
             conn.execute(
                 "UPDATE projects SET pending_reviews = ?, updated_at = ? WHERE project_id = ?",
-                (int(pending), now, review.project_id),
+                (pending, now, project_id),
             )
+        return pending
+
+    def upsert_review(self, review: ReviewItem) -> None:
+        self.upsert_reviews_bulk(review.project_id, [review])
 
     def list_reviews(
         self,
@@ -816,17 +910,18 @@ class ProjectWorkspaceManager:
     def next_batch_id(self) -> str:
         year = datetime.now(timezone.utc).year
         prefix = f"BATCH-{year}-"
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT batch_id FROM batches WHERE batch_id LIKE ?",
-                (f"{prefix}%",),
-            ).fetchall()
-        max_seq = 0
-        for row in rows:
-            tail = row["batch_id"][len(prefix) :]
-            if tail.isdigit():
-                max_seq = max(max_seq, int(tail))
-        return f"{prefix}{max_seq + 1:04d}"
+        with self._id_lock:
+            with self._connect() as conn:
+                rows = conn.execute(
+                    "SELECT batch_id FROM batches WHERE batch_id LIKE ?",
+                    (f"{prefix}%",),
+                ).fetchall()
+            max_seq = 0
+            for row in rows:
+                tail = row["batch_id"][len(prefix) :]
+                if tail.isdigit():
+                    max_seq = max(max_seq, int(tail))
+            return f"{prefix}{max_seq + 1:04d}"
 
     def find_duplicate_document(
         self, project_id: str, sha256: str

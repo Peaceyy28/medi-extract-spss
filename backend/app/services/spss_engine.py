@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import math
+import os
 import re
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -196,10 +198,19 @@ def anonymize_dataframe(
 
         new_var = var.model_copy(deep=True)
         if _PSEUDONYM_ID_RE.search(var.name):
-            pseudo_values = [
-                f"ANON_{i + 1:05d}" if not _is_missing_scalar(val) else ""
-                for i, val in enumerate(clean_df[var.name].tolist())
-            ]
+            id_map: dict[str, str] = {}
+            pseudo_values: list[str] = []
+            for val in clean_df[var.name].tolist():
+                if _is_missing_scalar(val):
+                    pseudo_values.append("")
+                    continue
+                key = str(val).strip()
+                if not key:
+                    pseudo_values.append("")
+                    continue
+                if key not in id_map:
+                    id_map[key] = f"ANON_{len(id_map) + 1:05d}"
+                pseudo_values.append(id_map[key])
             clean_df[var.name] = pseudo_values
             new_var.type = VariableType.STRING
             new_var.width = max(new_var.width, 16)
@@ -262,6 +273,12 @@ def _prepare_export_frame_and_meta(
     return work_df, work_vars
 
 
+def _atomic_temp_path(output_path: Path) -> Path:
+    return output_path.with_name(
+        f".{output_path.stem}.{uuid.uuid4().hex[:8]}.tmp{output_path.suffix}"
+    )
+
+
 def write_sav_file(
     df: pd.DataFrame,
     variables: list[VariableSchema],
@@ -315,16 +332,22 @@ def write_sav_file(
             if col_missing:
                 missing_ranges[var.name] = col_missing
 
-    pyreadstat.write_sav(
-        work_df,
-        str(output_path),
-        file_label=file_label,
-        column_labels=column_labels,
-        variable_value_labels=variable_value_labels or None,
-        missing_ranges=missing_ranges or None,
-        variable_measure=variable_measure,
-        variable_format=variable_format,
-    )
+    tmp_path = _atomic_temp_path(output_path)
+    try:
+        pyreadstat.write_sav(
+            work_df,
+            str(tmp_path),
+            file_label=file_label,
+            column_labels=column_labels,
+            variable_value_labels=variable_value_labels or None,
+            missing_ranges=missing_ranges or None,
+            variable_measure=variable_measure,
+            variable_format=variable_format,
+        )
+        os.replace(tmp_path, output_path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
     return output_path
 
 
@@ -457,7 +480,13 @@ def write_xlsx_with_codebook(
             ]
         )
 
-    wb.save(str(output_path))
+    tmp_path = _atomic_temp_path(output_path)
+    try:
+        wb.save(str(tmp_path))
+        os.replace(tmp_path, output_path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
     return output_path
 
 
@@ -470,7 +499,13 @@ def write_csv_file(
     """Export dataset to UTF-8 CSV."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     work_df, _ = _prepare_export_frame_and_meta(df, variables, anonymize=anonymize)
-    work_df.to_csv(output_path, index=False, encoding="utf-8")
+    tmp_path = _atomic_temp_path(output_path)
+    try:
+        work_df.to_csv(tmp_path, index=False, encoding="utf-8")
+        os.replace(tmp_path, output_path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
     return output_path
 
 
@@ -510,13 +545,19 @@ def write_dta_file(
                 if len(non_na) > 0 and (non_na % 1 == 0).all():
                     work_df[var.name] = work_df[var.name].astype("Int64")
 
-    pyreadstat.write_dta(
-        work_df,
-        str(output_path),
-        column_labels=column_labels or None,
-        variable_value_labels=variable_value_labels or None,
-        version=14,
-    )
+    tmp_path = _atomic_temp_path(output_path)
+    try:
+        pyreadstat.write_dta(
+            work_df,
+            str(tmp_path),
+            column_labels=column_labels or None,
+            variable_value_labels=variable_value_labels or None,
+            version=14,
+        )
+        os.replace(tmp_path, output_path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
     return output_path
 
 

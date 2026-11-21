@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import re
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -20,6 +21,7 @@ from app.services.report_exporter import (
 from app.services.validation_engine import run_validation_report
 
 router = APIRouter(prefix="/projects", tags=["reports"])
+_SAFE_PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 def _generate_report_for_project(
@@ -47,9 +49,14 @@ def _generate_report_for_project(
 
 
 def _report_export_path(project_id: str, ext: str) -> tuple[Path, str]:
+    if not _SAFE_PROJECT_ID_RE.match(project_id) or ".." in project_id:
+        raise HTTPException(status_code=400, detail="Invalid project identifier")
     settings = get_settings()
     settings.ensure_data_dirs()
-    export_dir = (settings.data_dir / "exports" / project_id).resolve()
+    exports_root = (settings.data_dir / "exports").resolve()
+    export_dir = (exports_root / project_id).resolve()
+    if export_dir.parent != exports_root:
+        raise HTTPException(status_code=400, detail="Invalid project identifier")
     export_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     filename = f"{project_id}_validation_audit_{stamp}.{ext}"

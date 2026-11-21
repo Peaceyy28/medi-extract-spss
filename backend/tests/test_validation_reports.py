@@ -220,3 +220,50 @@ def test_narrative_strips_preamble_and_uses_compact_json(client: TestClient) -> 
     assert provider_used == "ollama:llama3.2:3b"
     assert text.startswith("Clean rate is 95.0%")
     assert captured_prompts[0].startswith('REPORT_JSON:{"project":"OYSHIA 2025"')
+
+
+def test_vr05_dirty_dates_styled_xlsx_narrative_and_path_guard(
+    client: TestClient, tmp_path: Path
+) -> None:
+    from fastapi import HTTPException
+    import pytest
+
+    from app.api.reports import _report_export_path
+
+    # 1) VR-05 safely handles dirty non-numeric Year/Month strings without ValueError
+    store = get_project_store()
+    df, variables = store.get_dataframe_and_schema("proj_oyshia_2025")  # type: ignore[misc]
+    dirty = df.iloc[:3].copy()
+    dirty["OYSHIA_ID"] = ["SYN-DIRTY-1", "SYN-DIRTY-2", "SYN-DIRTY-1"]
+    dirty["Month"] = dirty["Month"].astype(object)
+    dirty["Year"] = dirty["Year"].astype(object)
+    dirty["Month"] = ["Oct", "Nov", "Oct"]
+    dirty["Year"] = ["2025?", "2025", "2025?"]
+    dirty["FacilityPHC"] = ["PHC A", "PHC B", "PHC A"]
+    dirty_rep = run_validation_report("proj_oyshia_2025", dirty, variables)
+    assert dirty_rep.summary.duplicates_prevented == 1
+
+    # 2) Styled Excel report includes dark header styling, freeze_panes, and Narrative Summary row
+    xlsx_res = client.post(
+        "/api/v1/projects/proj_oyshia_2025/reports/validation/xlsx",
+        json={"include_narrative": True},
+    )
+    assert xlsx_res.status_code == 200
+    out_xlsx = tmp_path / "styled_audit.xlsx"
+    out_xlsx.write_bytes(xlsx_res.content)
+    wb = openpyxl.load_workbook(out_xlsx)
+    ws_sum = wb["Summary"]
+    assert ws_sum.freeze_panes == "A2"
+    assert ws_sum["A1"].fill.start_color.rgb.endswith("1E3A5F")
+    metrics = [ws_sum.cell(row=r, column=1).value for r in range(2, ws_sum.max_row + 1)]
+    assert "Narrative Summary" in metrics
+
+    # 3) Path traversal guard on report export path resolution
+    with pytest.raises(HTTPException) as exc_info:
+        _report_export_path("../evil", "pdf")
+    assert exc_info.value.status_code == 400
+    bad_http = client.post(
+        "/api/v1/projects/..%2Fevil/reports/validation/export?format=pdf",
+        json={},
+    )
+    assert bad_http.status_code in {400, 404}

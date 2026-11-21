@@ -62,15 +62,35 @@ def _safe_filename(name: str, fallback_idx: int) -> str:
     return cleaned or f"clerk_{fallback_idx}.sav"
 
 
+def _safe_int_token(raw: Any) -> str:
+    if raw is None:
+        return ""
+    try:
+        if pd.isna(raw):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    if isinstance(raw, (int, np.integer)):
+        return str(int(raw))
+    if isinstance(raw, (float, np.floating)):
+        fval = float(raw)
+        return "" if math.isnan(fval) or math.isinf(fval) else str(int(fval))
+    text = str(raw).strip()
+    if not text or text.lower() == "nan":
+        return ""
+    try:
+        return str(int(float(text)))
+    except (TypeError, ValueError):
+        return text
+
+
 def _encounter_hash(row: dict[str, Any]) -> str | None:
     oid = str(row.get("OYSHIA_ID") or "").strip()
     if not oid or oid.lower() == "nan":
         return None
-    year_raw = row.get("Year")
-    month_raw = row.get("Month")
+    year_str = _safe_int_token(row.get("Year"))
+    month_str = _safe_int_token(row.get("Month"))
     fac_raw = str(row.get("FacilityPHC") or "").strip()
-    year_str = "" if year_raw is None or pd.isna(year_raw) else str(int(float(year_raw)))
-    month_str = "" if month_raw is None or pd.isna(month_raw) else str(int(float(month_raw)))
     payload = f"{oid}|{year_str}|{month_str}|{fac_raw}".lower()
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 

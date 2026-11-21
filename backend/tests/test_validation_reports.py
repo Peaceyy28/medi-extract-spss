@@ -152,3 +152,37 @@ def test_single_pass_vectorized_scale_performance(client: TestClient) -> None:
 
     assert report.summary.total_cases_evaluated == 5000
     assert elapsed < 1.5
+
+
+def test_validation_narrative_and_dataset_cache_invalidation(
+    client: TestClient,
+) -> None:
+    res = client.post(
+        "/api/v1/projects/proj_oyshia_2025/reports/validation",
+        json={"include_narrative": True},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["narrative_summary"]
+    assert "95.0%" in body["narrative_summary"]
+
+    # PDF includes narrative when include_narrative=True
+    pdf_res = client.post(
+        "/api/v1/projects/proj_oyshia_2025/reports/validation/pdf",
+        json={"include_narrative": True},
+    )
+    assert pdf_res.status_code == 200
+    pdf_doc = pymupdf.open(stream=pdf_res.content, filetype="pdf")
+    full_text = "\n".join(page.get_text("text") for page in pdf_doc)
+    pdf_doc.close()
+    assert "clean-data rate" in full_text
+
+    # Dataset mtime cache invalidates immediately when autorecode mutates dataset.sav
+    store = get_project_store()
+    df_before, _ = store.get_dataframe_and_schema("proj_oyshia_2025")  # type: ignore[misc]
+    assert "Age_Group" not in df_before.columns
+
+    rec_res = client.post("/api/v1/projects/proj_oyshia_2025/transform/autorecode", json={})
+    assert rec_res.status_code == 200
+    df_after, _ = store.get_dataframe_and_schema("proj_oyshia_2025")  # type: ignore[misc]
+    assert "Age_Group" in df_after.columns

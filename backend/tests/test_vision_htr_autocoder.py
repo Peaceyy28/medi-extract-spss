@@ -198,3 +198,30 @@ def test_batch_extract_review_confirm_spss_commit_and_immutable_audit(
     assert audit_res.status_code == 200
     assert len(audit_res.json()) == 1
     assert audit_res.json()[0]["raw_ocr_text"] == "Mss wrist pain (?trauma)"
+
+
+def test_project_autocoder_cache_reuses_embeddings() -> None:
+    from app.services.autocoder import get_project_autocoder
+
+    class CountingEmbedder(DeterministicStubEmbedder):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        def embed(self, texts: list[str]) -> np.ndarray:
+            self.calls += 1
+            return super().embed(texts)
+
+    store = get_project_store()
+    project = store.get_project("proj_oyshia_2025")
+    assert project is not None
+    emb = CountingEmbedder()
+
+    c1 = get_project_autocoder("proj_oyshia_2025", project.variables, embedder=emb)
+    c1.code_term("Diagnosis1", "Mss wrist pain (?trauma)")
+    calls_after_first = emb.calls
+
+    c2 = get_project_autocoder("proj_oyshia_2025", project.variables, embedder=emb)
+    assert c1 is c2
+    c2.code_term("Diagnosis1", "HTN")
+    assert emb.calls == calls_after_first + 1  # only query embedded, codebook matrix reused!

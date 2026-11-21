@@ -13,7 +13,7 @@ from app.schemas import (
     ReviewConfirmResponse,
     ReviewItem,
 )
-from app.services.autocoder import MedicalAutoCoder
+from app.services.autocoder import get_project_autocoder
 from app.services.project_store import get_project_store
 from app.services.review_service import (
     confirm_review_and_commit,
@@ -82,7 +82,7 @@ def autocode_clinical_term(project_id: str, payload: AutoCodeRequest) -> AutoCod
     project = store.get_project(project_id)
     if project is None:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
-    coder = MedicalAutoCoder(variables=project.variables)
+    coder = get_project_autocoder(project_id=project_id, variables=project.variables)
     return coder.code_term(
         variable_name=payload.variable_name,
         raw_text=payload.raw_text,

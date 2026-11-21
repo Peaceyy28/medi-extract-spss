@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 
 from app.config import get_settings
 from app.schemas import ValidationReportFilter, ValidationReportResponse
+from app.services.narrative_writer import generate_report_narrative
 from app.services.project_store import get_project_store
 from app.services.report_exporter import (
     export_validation_report_pdf,
@@ -39,6 +40,9 @@ def _generate_report_for_project(
         filter_req=filters,
         schema_version=settings.schema_version,
     )
+    if filters and filters.include_narrative:
+        narrative, _ = generate_report_narrative(report, project.name, settings=settings)
+        report.narrative_summary = narrative
     return project.name, report
 
 

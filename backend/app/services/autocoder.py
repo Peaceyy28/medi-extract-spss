@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
+import threading
 import zlib
 from typing import Protocol
 
@@ -115,15 +118,23 @@ class Embedder(Protocol):
 class FastEmbedEmbedder:
     """Lazy-loading local ONNX embedder via fastembed (BAAI/bge-small-en-v1.5)."""
 
-    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5") -> None:
+    def __init__(
+        self,
+        model_name: str = "BAAI/bge-small-en-v1.5",
+        cache_dir: str | None = None,
+    ) -> None:
         self.model_name = model_name
+        self.cache_dir = cache_dir
         self._model = None
 
     def _ensure_model(self) -> None:
         if self._model is None:
             from fastembed import TextEmbedding
 
-            self._model = TextEmbedding(self.model_name, threads=2)
+            kwargs: dict[str, object] = {"threads": 4}
+            if self.cache_dir:
+                kwargs["cache_dir"] = self.cache_dir
+            self._model = TextEmbedding(self.model_name, **kwargs)  # type: ignore[arg-type]
 
     def embed(self, texts: list[str]) -> np.ndarray:
         if not texts:
@@ -216,7 +227,10 @@ def get_embedder(settings: Settings | None = None) -> Embedder:
     elif backend == "hf_api":
         _EMBEDDER_INSTANCE = HFApiEmbedder(token=cfg.hf_token, model_name=cfg.embedding_model)
     else:
-        _EMBEDDER_INSTANCE = FastEmbedEmbedder(model_name=cfg.embedding_model)
+        _EMBEDDER_INSTANCE = FastEmbedEmbedder(
+            model_name=cfg.embedding_model,
+            cache_dir=cfg.resolved_fastembed_cache_path(),
+        )
     return _EMBEDDER_INSTANCE
 
 
@@ -367,3 +381,39 @@ class MedicalAutoCoder:
             quarantined=False,
             candidates=top_candidates,
         )
+
+
+_AUTOCODER_CACHE_LOCK = threading.Lock()
+_AUTOCODER_CACHE: dict[tuple[str, str, int], MedicalAutoCoder] = {}
+
+
+def _schema_signature(variables: list[VariableSchema]) -> str:
+    payload = [
+        (v.name, sorted(v.value_labels.items()))
+        for v in variables
+        if v.value_labels
+    ]
+    return hashlib.sha256(json.dumps(payload).encode("utf-8")).hexdigest()[:16]
+
+
+def get_project_autocoder(
+    project_id: str,
+    variables: list[VariableSchema],
+    embedder: Embedder | None = None,
+) -> MedicalAutoCoder:
+    """Return cached MedicalAutoCoder holding pre-embedded codebook matrices."""
+    emb = embedder or get_embedder()
+    key = (project_id, _schema_signature(variables), id(emb))
+    with _AUTOCODER_CACHE_LOCK:
+        cached = _AUTOCODER_CACHE.get(key)
+        if cached is not None:
+            return cached
+        coder = MedicalAutoCoder(variables=variables, embedder=emb)
+        _AUTOCODER_CACHE[key] = coder
+        return coder
+
+
+def reset_autocoder_cache() -> None:
+    """Clear cached project MedicalAutoCoder instances (used in tests)."""
+    with _AUTOCODER_CACHE_LOCK:
+        _AUTOCODER_CACHE.clear()

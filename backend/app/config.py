@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -27,10 +28,11 @@ class Settings(BaseSettings):
     watch_folder: str = r"C:\EncounterForms\ScanQueue"
     cors_origins: list[str] = ["*"]
 
-    # Vision HTR provider chain (local Ollama primary; HF / Groq for hosted open-weight demos)
+    # Vision HTR & Narrative provider chain (local Ollama primary; HF / Groq for hosted demos)
     vision_provider_chain: str = "ollama,huggingface,groq"
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_vision_model: str = "qwen2.5vl:3b"
+    ollama_narrative_model: str = "llama3.2:3b"
     hf_base_url: str = "https://router.huggingface.co/v1"
     hf_token: str = ""
     hf_vision_model: str = "Qwen/Qwen2.5-VL-7B-Instruct"
@@ -41,7 +43,15 @@ class Settings(BaseSettings):
     # Medical Auto-Coder embedding settings
     embedding_backend: str = "fastembed"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
+    fastembed_cache_path: str = ""
     confidence_threshold: float = 0.90
+
+    def resolved_fastembed_cache_path(self) -> str | None:
+        """Return explicit cache directory for FastEmbed ONNX weights if configured."""
+        candidate = self.fastembed_cache_path.strip() or os.environ.get(
+            "FASTEMBED_CACHE_PATH", ""
+        ).strip()
+        return candidate or None
 
     def ensure_data_dirs(self) -> None:
         """Create required local storage directories on demand."""

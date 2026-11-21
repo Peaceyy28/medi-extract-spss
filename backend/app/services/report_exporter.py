@@ -53,6 +53,8 @@ def export_validation_report_pdf(
         f"| Duplicates Prevented: {s.duplicates_prevented}",
         size=10.0,
     )
+    if report.narrative_summary:
+        _write_line(report.narrative_summary, size=9.5, indent=50.0)
     y += 6.0
 
     _write_line("2. Demographics & Digit-Preference Audit", size=11.5, bold=True)

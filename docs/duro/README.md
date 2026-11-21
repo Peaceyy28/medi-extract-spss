@@ -8,19 +8,19 @@
 
 ## Milestone Checklist (`D1–D5`)
 
-- [ ] **D1 — FastAPI Scaffold, Pydantic Contracts & `pyreadstat` Core Engine** (`feat/d1-spss-scaffold-contracts`)
-  - [ ] Initialize FastAPI project in `/backend` (Python 3.12+ / `uv`).
-  - [ ] Implement Pydantic models matching `docs/shared/02-api-contracts.md` byte-for-byte.
-  - [ ] Build `pyreadstat` service to read `.sav` files (extracting variable names, types, widths, decimals, value label codebooks, and measurement levels) and export genuine binary `.sav` + reproducible `.sps` syntax files.
-  - [ ] Commit synthetic, non-PII OYSHIA fixture JSON & `.sav` in `/fixtures` so Peace can test `P1–P4` immediately.
-  - [ ] Add `pytest` unit tests for `.sav` round-trip integrity.
+- [x] **D1 — FastAPI Scaffold, Pydantic Contracts & `pyreadstat` Core Engine** (`feat/d1-spss-scaffold-contracts`)
+  - [x] Initialize FastAPI project in `/backend` (Python 3.12+ / `uv`).
+  - [x] Implement Pydantic models matching `docs/shared/02-api-contracts.md` byte-for-byte.
+  - [x] Build `pyreadstat` service to read `.sav` files (extracting variable names, types, widths, decimals, value label codebooks, and measurement levels) and export genuine binary `.sav` + reproducible `.sps` syntax files.
+  - [x] Commit synthetic, non-PII OYSHIA fixture JSON & `.sav` in `/fixtures` so Peace can test `P1–P4` immediately.
+  - [x] Add `pytest` unit tests for `.sav` round-trip integrity.
 
-- [ ] **D2 — Multi-Project Workspace Manager, Auto-Schema & Multi-Clerk `.SAV` Merger** (`feat/d2-projects-autoschema`)
-  - [ ] Implement isolated project workspaces (`GET /api/v1/projects`, `POST /api/v1/projects`).
-  - [ ] Mode A: Clone Variable View schema directly from an uploaded `.sav` template.
-  - [ ] Mode B: Auto-discover draft Variable View schema from an uploaded blank questionnaire PDF.
-  - [ ] Implement Multi-Clerk SPSS Harmonizer & Master Merger (`POST /api/v1/projects/{id}/merge/inspect` and `/merge/execute`): align variable drift, reconcile conflicting Value Label codebooks by meaning, auto-heal string/numeric type mismatches, deduplicate across 30+ `.sav` files, and append Clerk Provenance columns (`Source_Clerk_ID`, `Source_File_Name`, `Orig_Row_No`) + Clerk Quality Scorecard.
-  - [ ] Implement 1-Click SPSS Auto-Recode & Computed Variables (`POST /api/v1/projects/{id}/transform/autorecode`): generate `Age_Group`, `Primary_Disease_Category`, `Comorbidity_Count`, and `Polypharmacy_Count` with Value Labels.
+- [x] **D2 — Multi-Project Workspace Manager, Auto-Schema & Multi-Clerk `.SAV` Merger** (`feat/d2-projects-autoschema`)
+  - [x] Implement isolated project workspaces (`GET /api/v1/projects`, `POST /api/v1/projects`).
+  - [x] Mode A: Clone Variable View schema directly from an uploaded `.sav` template.
+  - [x] Mode B: Auto-discover draft Variable View schema from an uploaded blank questionnaire PDF.
+  - [x] Implement Multi-Clerk SPSS Harmonizer & Master Merger (`POST /api/v1/projects/{id}/merge/inspect` and `/merge/execute`): align variable drift, reconcile conflicting Value Label codebooks by meaning, auto-heal string/numeric type mismatches, deduplicate across 30+ `.sav` files, and append Clerk Provenance columns (`Source_Clerk_ID`, `Source_File_Name`, `Orig_Row_No`) + Clerk Quality Scorecard.
+  - [x] Implement 1-Click SPSS Auto-Recode & Computed Variables (`POST /api/v1/projects/{id}/transform/autorecode`): generate `Age_Group`, `Primary_Disease_Category`, `Comorbidity_Count`, and `Polypharmacy_Count` with Value Labels.
 
 - [ ] **D3 — Dual Scanner Ingestion, OpenCV Pre-processor & OMR** (`feat/d3-scanner-opencv-omr`)
   - [ ] Implement `watchdog` Hot-Folder listener (`C:\EncounterForms\ScanQueue`) with write-completion debouncing + manual PDF/file-path upload endpoint.

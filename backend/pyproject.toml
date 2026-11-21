@@ -1,0 +1,31 @@
+[project]
+name = "medi-extract-spss-backend"
+version = "0.1.0"
+description = "FastAPI backend, pyreadstat SPSS engine, OpenCV/OMR pipeline, and local validation engine for MediExtract SPSS."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "python-multipart>=0.0.12",
+    "pyreadstat>=1.2.8",
+    "pandas>=2.2",
+    "numpy>=2.0",
+    "openpyxl>=3.1",
+    "pymupdf>=1.24",
+    "rapidfuzz>=3.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.27",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

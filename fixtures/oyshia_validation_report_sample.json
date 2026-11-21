@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0.0",
+  "project_id": "proj_oyshia_2025",
+  "filters_applied": {
+    "issue_type": "ALL"
+  },
+  "summary": {
+    "total_cases_evaluated": 100,
+    "clean_cases_count": 95,
+    "clean_rate_pct": 95.0,
+    "flagged_cases_count": 5,
+    "duplicates_prevented": 1
+  },
+  "missingness_audit": [
+    {
+      "variable": "OYSHIA_ID",
+      "missing_count": 1,
+      "missing_pct": 1.0,
+      "severity": "WARNING"
+    }
+  ],
+  "demographics_audit": {
+    "age_mean": 42.1,
+    "age_median": 41.0,
+    "age_min": 4.0,
+    "age_max": 140.0,
+    "age_outliers_count": 1,
+    "digit_preference_whipple_index": 104.0,
+    "sex_distribution": {
+      "Male": 40,
+      "Female": 60
+    }
+  },
+  "clinical_audit": {
+    "top_diagnoses": [
+      {
+        "code": 2.0,
+        "label": "Hypertention",
+        "count": 38,
+        "pct": 38.0
+      },
+      {
+        "code": 4.0,
+        "label": "Malaria",
+        "count": 21,
+        "pct": 21.0
+      },
+      {
+        "code": 50.0,
+        "label": "DIABETES",
+        "count": 19,
+        "pct": 19.0
+      }
+    ],
+    "mean_drugs_per_encounter": 1.6,
+    "contradictions_found": [
+      {
+        "case_index": 13,
+        "rule_id": "VR-02",
+        "description": "Male patient (Sex=1) coded with Diagnosis=43 (FIBROID)"
+      },
+      {
+        "case_index": 14,
+        "rule_id": "VR-04-RX",
+        "description": "Diagnosis-to-Drug Mismatch: Prescribed Metformin (54) & Amlodipine (14) with only Malaria (4.0) listed under Diagnoses"
+      }
+    ]
+  },
+  "facility_ranking": [
+    {
+      "facility": "General Hospital, Igboho",
+      "cases": 17,
+      "clean_rate_pct": 100.0
+    },
+    {
+      "facility": "Adeoyo Maternity Hospital",
+      "cases": 17,
+      "clean_rate_pct": 88.24
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+[
+  {
+    "review_id": "rev_syn_01_diag2",
+    "project_id": "proj_oyshia_2025",
+    "batch_id": "BATCH-2025-SYN",
+    "case_index": 4,
+    "patient_summary": "Synthetic Enrollee 004 (Female, Age 39) \u2014 General Hospital, Oyo",
+    "variable_name": "Diagnosis2",
+    "variable_label": "Clinical Diagnosis 2",
+    "status": "NEEDS_REVIEW",
+    "raw_handwriting_text": "Mss wrist pain (?trauma)",
+    "confidence": 0.68,
+    "crop_image_url": "/api/v1/crops/BATCH-2025-SYN/case_04_Diagnosis2.webp",
+    "full_page_url": "/api/v1/scans/BATCH-2025-SYN/page_04.webp",
+    "suggested_candidates": [
+      {
+        "code": 1.0,
+        "label": "MSS OF THE WRIST",
+        "similarity": 0.91
+      },
+      {
+        "code": 13.0,
+        "label": "MSS PAIN",
+        "similarity": 0.84
+      },
+      {
+        "code": 91.0,
+        "label": "MSS PAIN OF RIGHT KNEE",
+        "similarity": 0.72
+      }
+    ]
+  },
+  {
+    "review_id": "rev_syn_02_diag1",
+    "project_id": "proj_oyshia_2025",
+    "batch_id": "BATCH-2025-SYN",
+    "case_index": 14,
+    "patient_summary": "Synthetic Enrollee 014 (Male, Age 52) \u2014 Adeoyo Maternity Hospital",
+    "variable_name": "Diagnosis1",
+    "variable_label": "Primary Clinical Diagnosis",
+    "status": "NEEDS_REVIEW",
+    "raw_handwriting_text": "High BP / HTN",
+    "confidence": 0.81,
+    "crop_image_url": "/api/v1/crops/BATCH-2025-SYN/case_14_Diagnosis1.webp",
+    "full_page_url": "/api/v1/scans/BATCH-2025-SYN/page_14.webp",
+    "suggested_candidates": [
+      {
+        "code": 2.0,
+        "label": "Hypertention",
+        "similarity": 0.94
+      },
+      {
+        "code": 50.0,
+        "label": "DIABETES",
+        "similarity": 0.41
+      }
+    ]
+  },
+  {
+    "review_id": "rev_syn_03_diag1",
+    "project_id": "proj_oyshia_2025",
+    "batch_id": "BATCH-2025-SYN",
+    "case_index": 21,
+    "patient_summary": "Synthetic Enrollee 021 (Female, Age 29) \u2014 Ring Road State Hospital",
+    "variable_name": "Diagnosis1",
+    "variable_label": "Primary Clinical Diagnosis",
+    "status": "NEEDS_REVIEW",
+    "raw_handwriting_text": "Dyspepsia / PUD",
+    "confidence": 0.79,
+    "crop_image_url": "/api/v1/crops/BATCH-2025-SYN/case_21_Diagnosis1.webp",
+    "full_page_url": "/api/v1/scans/BATCH-2025-SYN/page_21.webp",
+    "suggested_candidates": [
+      {
+        "code": 22.0,
+        "label": "PUD / Dyspepsia",
+        "similarity": 0.96
+      }
+    ]
+  },
+  {
+    "review_id": "rev_syn_04_treat1",
+    "project_id": "proj_oyshia_2025",
+    "batch_id": "BATCH-2025-SYN",
+    "case_index": 35,
+    "patient_summary": "Synthetic Enrollee 035 (Female, Age 61) \u2014 General Hospital, Igboho",
+    "variable_name": "Treatment1",
+    "variable_label": "Prescribed Medication 1",
+    "status": "NEEDS_REVIEW",
+    "raw_handwriting_text": "Tab Amlod 5mg dly",
+    "confidence": 0.84,
+    "crop_image_url": "/api/v1/crops/BATCH-2025-SYN/case_35_Treatment1.webp",
+    "full_page_url": "/api/v1/scans/BATCH-2025-SYN/page_35.webp",
+    "suggested_candidates": [
+      {
+        "code": 14.0,
+        "label": "Amlodipine",
+        "similarity": 0.92
+      },
+      {
+        "code": 15.0,
+        "label": "Lisinopril",
+        "similarity": 0.58
+      }
+    ]
+  },
+  {
+    "review_id": "rev_syn_05_diag1",
+    "project_id": "proj_oyshia_2025",
+    "batch_id": "BATCH-2025-SYN",
+    "case_index": 48,
+    "patient_summary": "Synthetic Enrollee 048 (Male, Age 19) \u2014 General Hospital, Iseyin",
+    "variable_name": "Diagnosis1",
+    "variable_label": "Primary Clinical Diagnosis",
+    "status": "NEEDS_REVIEW",
+    "raw_handwriting_text": "MP ++",
+    "confidence": 0.76,
+    "crop_image_url": "/api/v1/crops/BATCH-2025-SYN/case_48_Diagnosis1.webp",
+    "full_page_url": "/api/v1/scans/BATCH-2025-SYN/page_48.webp",
+    "suggested_candidates": [
+      {
+        "code": 73.0,
+        "label": "MALARIA PARASITE",
+        "similarity": 0.91
+      },
+      {
+        "code": 4.0,
+        "label": "Malaria",
+        "similarity": 0.88
+      }
+    ]
+  }
+]

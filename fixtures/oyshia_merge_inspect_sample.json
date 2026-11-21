@@ -1,0 +1,63 @@
+{
+  "merge_session_id": "mrg_2025_syn_01",
+  "files_uploaded": 4,
+  "total_rows_across_files": 100,
+  "exact_schema_matches": 29,
+  "variable_drifts": [
+    {
+      "source_file": "Clerk_SynA_Oct.sav",
+      "source_variable": "treatment2",
+      "suggested_master_variable": "Treatment2",
+      "classification": "EXACT_MATCH",
+      "action": "AUTO_RENAME",
+      "confidence": 1.0
+    },
+    {
+      "source_file": "Clerk_SynB_Oct.sav",
+      "source_variable": "Patient_Phone2",
+      "suggested_master_variable": "Phone_contact",
+      "classification": "STRONG_SUGGESTION",
+      "action": "PROMPT_USER",
+      "confidence": 0.82
+    }
+  ],
+  "codebook_collisions_resolved": [
+    {
+      "variable": "Diagnosis1",
+      "source_file": "Clerk_SynB_Oct.sav",
+      "original_code": 265.0,
+      "label": "Costochondritis",
+      "conflict_with_master_label": "Eczema",
+      "new_assigned_code": 266.0,
+      "rows_recoded": 4
+    }
+  ],
+  "type_coercions": [
+    {
+      "source_file": "Clerk_SynC_Oct.sav",
+      "variable": "LGA",
+      "from_type": "string",
+      "to_type": "numeric",
+      "status": "AUTO_HEALED"
+    }
+  ],
+  "cross_file_duplicates_detected": 1,
+  "clerk_quality_scorecard": [
+    {
+      "clerk_id": 1,
+      "source_file": "Clerk_SynA_Oct.sav",
+      "rows_contributed": 50,
+      "missing_rate_pct": 0.0,
+      "logic_errors_count": 0,
+      "codebook_collisions_count": 0
+    },
+    {
+      "clerk_id": 2,
+      "source_file": "Clerk_SynB_Oct.sav",
+      "rows_contributed": 50,
+      "missing_rate_pct": 2.0,
+      "logic_errors_count": 2,
+      "codebook_collisions_count": 1
+    }
+  ]
+}

@@ -8,12 +8,12 @@
 
 ## Milestone Checklist (`D1–D5`)
 
-- [ ] **D1 — FastAPI Scaffold, Pydantic Contracts & `pyreadstat` Core Engine** (`feat/d1-spss-scaffold-contracts`)
-  - [ ] Initialize FastAPI project in `/backend` (Python 3.12+ / `uv`).
-  - [ ] Implement Pydantic models matching `docs/shared/02-api-contracts.md` byte-for-byte.
-  - [ ] Build `pyreadstat` service to read `.sav` files (extracting variable names, types, widths, decimals, value label codebooks, and measurement levels) and export genuine binary `.sav` + reproducible `.sps` syntax files.
-  - [ ] Commit synthetic, non-PII OYSHIA fixture JSON & `.sav` in `/fixtures` so Peace can test `P1–P4` immediately.
-  - [ ] Add `pytest` unit tests for `.sav` round-trip integrity.
+- [x] **D1 — FastAPI Scaffold, Pydantic Contracts & `pyreadstat` Core Engine** (`feat/d1-spss-scaffold-contracts`)
+  - [x] Initialize FastAPI project in `/backend` (Python 3.12+ / `uv`).
+  - [x] Implement Pydantic models matching `docs/shared/02-api-contracts.md` byte-for-byte.
+  - [x] Build `pyreadstat` service to read `.sav` files (extracting variable names, types, widths, decimals, value label codebooks, and measurement levels) and export genuine binary `.sav` + reproducible `.sps` syntax files.
+  - [x] Commit synthetic, non-PII OYSHIA fixture JSON & `.sav` in `/fixtures` so Peace can test `P1–P4` immediately.
+  - [x] Add `pytest` unit tests for `.sav` round-trip integrity.
 
 - [ ] **D2 — Multi-Project Workspace Manager, Auto-Schema & Multi-Clerk `.SAV` Merger** (`feat/d2-projects-autoschema`)
   - [ ] Implement isolated project workspaces (`GET /api/v1/projects`, `POST /api/v1/projects`).
